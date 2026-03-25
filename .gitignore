@@ -15,6 +15,9 @@ llama3-abcd-lora/
 evaluation_results.json
 val_predictions.json
 Clpsych2026_Guidelines.pdf
+llama3_presence_lora/
+llama3_presence_rating/
+llama3_presence_rating_v2/
 
 # Distribution / packaging
 .Python

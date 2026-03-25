@@ -7,7 +7,7 @@ import json
 import re
 import torch
 import numpy as np
-from unsloth import FastLanguageModel
+from mlx_tune import FastLanguageModel, SFTTrainer, SFTConfig
 from tqdm import tqdm
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from scipy.stats import pearsonr
@@ -21,7 +21,7 @@ print("\nLoading model...")
 
 model, tokenizer = FastLanguageModel.from_pretrained(
     model_name="llama3_presence_lora",
-    max_seq_length=2048,
+    max_seq_length=1024,
     dtype=None,
     load_in_4bit=True,
 )

@@ -49,9 +49,9 @@ if __name__ == "__main__":
     # ========== Load Model ==========
     print("\nLoading Llama-3-8B...")
 
-    max_seq_length = 1024
+    max_seq_length = 2048
     model, tokenizer = FastLanguageModel.from_pretrained(
-        model_name="mlx-community/Meta-Llama-3-8B-8bit",
+        model_name="mlx-community/Llama-3.2-3B-Instruct-4bit",
         max_seq_length=max_seq_length,
         dtype=None,
         load_in_4bit=True,
@@ -75,7 +75,7 @@ if __name__ == "__main__":
     )
 
     print("✅ LoRA configured")
-    model.print_trainable_parameters()
+    # model.print_trainable_parameters()
 
     # ========== Format Dataset ==========
     print("\nFormatting dataset...")
@@ -91,11 +91,11 @@ if __name__ == "__main__":
             # Llama-3 chat format
             text = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
 
-    {instruction}<|eot_id|><|start_header_id|>user<|end_header_id|>
+            {instruction}<|eot_id|><|start_header_id|>user<|end_header_id|>
 
-    {input_text}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+            {input_text}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 
-    {output}<|eot_id|>"""
+            {output}<|eot_id|>"""
             texts.append(text)
         
         return {"text": texts}
@@ -113,10 +113,10 @@ if __name__ == "__main__":
     print("\nConfiguring training...")
 
     training_args = TrainingArguments(
-        output_dir="llama3_presence_rating",
+        output_dir="llama3_presence_rating_v2",
         
         # Training schedule
-        num_train_epochs=3,
+        num_train_epochs=1,
         per_device_train_batch_size=2,
         per_device_eval_batch_size=2,
         gradient_accumulation_steps=4,

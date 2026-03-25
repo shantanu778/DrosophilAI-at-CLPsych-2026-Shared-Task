@@ -4,7 +4,7 @@ import numpy as np
 from glob import glob
 import os   
 from collections import defaultdict
-
+from torch.utils.data import Dataset
 
 
 
@@ -391,8 +391,7 @@ def create_instruction_dataset(df):
 #     print(f"Output: {row['output'][:200]}...")
 
 
-from torch.utils.data import Dataset
-import torch
+
 
 class ABCDInstructionDataset(Dataset):
     """
@@ -450,3 +449,17 @@ class ABCDInstructionDataset(Dataset):
 
 # Note: We'll create the actual dataset after loading the model
 # to avoid loading tokenizer twice
+
+
+if __name__=='__main__':
+    train_loader = CLPsychDataLoader('..tasks12/', split='train')
+    val_loader = CLPsychDataLoader('..tasks12/', split='val')
+    train_df = train_loader.load()
+    print("Training Set Stats")
+    val_df = val_loader.load()
+    train_loader.verify_order()
+    train_loader.get_stats()
+    print("\n" + "=" * 60)
+    print("Validation Set Stats")
+    val_loader.verify_order()
+    val_loader.get_stats()

@@ -1,20 +1,15 @@
-from unsloth import FastLanguageModel
+from mlx_tune import FastLanguageModel, SFTTrainer
 from pprint import pprint
 import torch
 from huggingface_hub import login
 import torch
 from transformers import (
-    AutoTokenizer, 
-    AutoModelForCausalLM, 
-    BitsAndBytesConfig,
     TrainingArguments,
     Trainer,
     DataCollatorForLanguageModeling
 )
-from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
-from sklearn.model_selection import train_test_split
 
-from .dataset import (CLPsychDataLoader, create_instruction_dataset, df_to_training_format,
+from dataset import (CLPsychDataLoader, create_instruction_dataset, df_to_training_format,
                       ABCDInstructionDataset)
 
 
@@ -75,7 +70,7 @@ print("\n" + "=" * 60)
 print("STEP 4: Loading Llama-3-8B Model")
 print("=" * 60)
 
-model_name = "mlx-community/Meta-Llama-3-8B-8bit"
+model_name = "mlx-community/Llama-3.3-70B-Instruct-4bit" 
 
 # bnb_config = BitsAndBytesConfig(
 #     load_in_4bit=True,
@@ -85,19 +80,20 @@ model_name = "mlx-community/Meta-Llama-3-8B-8bit"
 # )
 
 model, tokenizer = FastLanguageModel.from_pretrained(
-    model_name="mlx-community/Meta-Llama-3-8B-8bit",
-    max_seq_length=1024,
-    dtype=torch.float16,
+    model_name=model_name,
+    max_seq_length=2048,
+    dtype=None,
     load_in_4bit=True,
+    device_map="balanced",
 )
 
 # Load tokenizer
-tokenizer.pad_token = tokenizer.eos_token
-tokenizer.padding_side = "right"
+# tokenizer.pad_token = tokenizer.eos_token
+# tokenizer.padding_side = "right"
 
 # Load model WITHOUT BitsAndBytesConfig
 # model = AutoModelForCausalLM.from_pretrained("meta-llama/Meta-Llama-3-8B", load_in_4bit=True)
-model = model.to(device)
+# model = model.to(device)
 # model.config.use_cache = False
 model.config.pretraining_tp = 1
 
@@ -106,27 +102,41 @@ print("\n" + "=" * 60)
 print("STEP 5: Configuring LoRA")
 print("=" * 60)
 
-model = prepare_model_for_kbit_training(model)
-
+# model = prepare_model_for_kbit_training(model)
 # LoRA configuration
-lora_config = LoraConfig(
-    r=8,  # Rank
-    lora_alpha=16,
-    target_modules=[
-        "q_proj",
-        "k_proj",
-        "v_proj",
-        "o_proj",
-        "gate_proj",
-        "up_proj",
-        "down_proj",
-    ],
-    lora_dropout=0.05,
+# lora_config = LoraConfig(
+#     r=8,  # Rank
+#     lora_alpha=16,
+#     target_modules=[
+#         "q_proj",
+#         "k_proj",
+#         "v_proj",
+#         "o_proj",
+#         "gate_proj",
+#         "up_proj",
+#         "down_proj",
+#     ],
+#     lora_dropout=0.05,
+#     bias="none",
+#     task_type="CAUSAL_LM"
+# )
+
+model = FastLanguageModel.get_peft_model(  # Unsloth's version
+    model,
+    r=64,  # higher rank for 70B
+    target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
+                    "gate_proj", "up_proj", "down_proj"],
+    lora_alpha=128,
+    lora_dropout=0,
     bias="none",
-    task_type="CAUSAL_LM"
+    use_gradient_checkpointing="unsloth",  # VRAM saver
+    random_state=3407,
+    use_rslora=False,
+    loftq_config=None,
 )
 
-model = get_peft_model(model, lora_config)
+
+# model = get_peft_model(model, lora_config)
 model.print_trainable_parameters()
 
 # ========== STEP 6: Create Datasets ==========
@@ -167,37 +177,62 @@ print(f"Expected: mps")
 # print("If > 5s, something is wrong")
 # print("="*60 + "\n")
 
-training_args = TrainingArguments(
-    output_dir="./llama3-abcd-lora",
-    num_train_epochs=10,
-    per_device_train_batch_size=4,
-    per_device_eval_batch_size=4,
-    gradient_accumulation_steps=4,
-    learning_rate=5e-4,
-    lr_scheduler_type="cosine",
-    warmup_steps=0.03,  # 3% of total steps
-    logging_steps=10,
-    save_strategy="epoch",
-    eval_strategy="epoch",
-    bf16=True,
-    optim="paged_adamw_8bit",
-    max_grad_norm=0.3,
-    train_sampling_strategy="sequential",  # Ensure sequential sampling to preserve order
-    report_to="none",
-    save_total_limit=2,
-)
+# training_args = TrainingArguments(
+#     output_dir="./llama3-abcd-lora",
+#     num_train_epochs=10,
+#     per_device_train_batch_size=4,
+#     per_device_eval_batch_size=4,
+#     gradient_accumulation_steps=4,
+#     learning_rate=5e-4,
+#     lr_scheduler_type="cosine",
+#     warmup_steps=0.03,  # 3% of total steps
+#     logging_steps=10,
+#     save_strategy="epoch",
+#     eval_strategy="epoch",
+#     bf16=True,
+#     optim="paged_adamw_8bit",
+#     max_grad_norm=0.3,
+#     train_sampling_strategy="sequential",  # Ensure sequential sampling to preserve order
+#     report_to="none",
+#     save_total_limit=2,
+# )
 
-data_collator = DataCollatorForLanguageModeling(
-    tokenizer=tokenizer,
-    mlm=False
-)
+# data_collator = DataCollatorForLanguageModeling(
+#     tokenizer=tokenizer,
+#     mlm=False
+# )
+ # add this import at top
 
-trainer = Trainer(
+trainer = SFTTrainer(
     model=model,
-    args=training_args,
+    tokenizer=tokenizer,
     train_dataset=train_dataset,
     eval_dataset=val_dataset,
-    data_collator=data_collator,
+    dataset_text_field="text",  # we'll add this
+    max_seq_length=2048,
+    dataset_num_proc=2,
+    packing=False,  # preserves timeline order
+    args=TrainingArguments(
+        per_device_train_batch_size=2,  # small for 70B
+        gradient_accumulation_steps=16, # effective batch=32
+        per_device_eval_batch_size=2,
+        output_dir="./llama33_70b_abcd",
+        num_train_epochs=10,  # shorter first run
+        learning_rate=2e-4,
+        warmup_steps=50,
+        logging_steps=5,
+        save_strategy="steps",
+        save_steps=200,
+        eval_steps=200,
+        eval_strategy="steps",
+        bf16=True,
+        optim="adamw_8bit",
+        weight_decay=0.01,
+        lr_scheduler_type="cosine",
+        max_grad_norm=1.0,
+        report_to="none",
+        ddp_find_unused_parameters=False,  # DDP essential
+    ),
 )
 
 # ========== STEP 8: Train ==========
