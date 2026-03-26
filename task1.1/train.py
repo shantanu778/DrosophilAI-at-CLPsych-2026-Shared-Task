@@ -230,7 +230,7 @@ trainer = SFTTrainer(
     dataset_num_proc=2,
     packing=False,  # preserves timeline order
     args=TrainingArguments(
-        per_device_train_batch_size=1,  # small for 70B
+        per_device_train_batch_size=2,  # small for 70B
         gradient_accumulation_steps=8, # effective batch=32
         per_device_eval_batch_size=2,
         output_dir="./llama3_8b_abcd",
@@ -239,11 +239,11 @@ trainer = SFTTrainer(
         metric_for_best_model="eval_loss",
         greater_is_better=False,         # Lower loss = better  # Save after each eval
         learning_rate=2e-4,
-        warmup_steps=50,
+        warmup_steps=10,
         logging_steps=5,
         save_strategy="steps",
-        save_steps=200,
-        eval_steps=200,
+        save_steps=20,
+        eval_steps=20,
         eval_strategy="steps",
         bf16=True,
         optim="adamw_8bit",

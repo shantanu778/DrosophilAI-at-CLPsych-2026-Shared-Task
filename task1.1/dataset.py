@@ -244,7 +244,7 @@ def format_evidence_as_json(evidence):
     if 'adaptive-state' in evidence:
         for dim, data in evidence['adaptive-state'].items():
             if dim == 'Presence':
-                print(data)
+                # print(data)
                 output['adaptive-state']['Presence'] = data
             if dim != 'Presence' and isinstance(data, dict):
                 if 'Category' in data and data['Category']:
