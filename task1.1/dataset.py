@@ -298,7 +298,7 @@ def create_instruction_dataset(df):
     Maintains order from sorted DataFrame
     """
     
-    instruction = """You are an expert in mental health text analysis using the MIND framework. Analyze the social media post and identify ABCD (Affect, Behavior, Cognition, Desire) elements.
+    instruction = """You are an expert in mental health text analysis using the MIND framework. Analyze the social media post and identify ABCD (Affect, Behavior, Cognition, Desire) elements and their subelements. Analyze the post and rate the presence of adaptive and maladaptive self-states based on subelements on a scale of 1-5.
 
         For each post, identify:
         - Adaptive self-state elements (supporting well-being)
@@ -312,30 +312,52 @@ def create_instruction_dataset(df):
         - C-O: Cognition toward Others (C-O) (Beliefs, interpretations, and appraisals about others)
         - D: Desire (Motivations, needs, wishes, and expectations)
 
-        Categories:
+        Subelements:
         """ + get_taxonomy_string() + """
 
-        Output JSON format:
-        {
-        "adaptive-state": {
-            "dimension": {
-            "Category": "(number) category name",
-            "highlighted_evidence": "exact quote from post"
-            }
-        },
-        "maladaptive-state": {
-            "dimension": {
-            "Category": "(number) category name",
-            "highlighted_evidence": "exact quote from post"
-            }
-        }
-        }
+        Output in JSON format. For example,
 
+        [
+            {
+                "timeline_id": "91b6a42835",
+                "post_id": "28641e5b6d",
+                "adaptive-state": {
+                "Presence": 5,
+                "B-S": { "subelements": 1 },
+                "B-O": { "subelements": 1 },
+                "C-S": { "subelements": 1 },
+                "D": { "subelements": 3 }
+                },
+                "maladaptive-state": {
+                "Presence": 2,
+                "C-S": { "subelements": 2 }
+                }
+            },
+            {
+                "timeline_id": "306d938d4b",
+                "post_id": "308b0c2c6c",
+                "adaptive-state": {
+                "Presence": 2,
+                "B-S": { "subelements": 1 },
+                "B-O": { "subelements": 1 }
+                },
+                "maladaptive-state": {
+                "Presence": 2,
+                "A": { "subelements": 2 }
+                }
+            }
+        ]
+
+
+    
         Rules:
         1. Each dimension can appear in adaptive, maladaptive, both, or neither
         2. Evidence must be exact quote from the post (3-15 words)
         3. Only include dimensions you detect in the post
-        4. Multiple dimensions can be present simultaneously"""
+        4. Multiple dimensions can be present simultaneously
+        5. Brief analysis of adaptive elements
+        6. Adaptive and Maladaptive presence score (1-5) based on the subelement, Only consider integar Value
+        7. Overall reasoning"""
 
     dataset = []
     
