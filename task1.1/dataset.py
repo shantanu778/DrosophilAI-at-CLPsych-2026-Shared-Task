@@ -243,6 +243,9 @@ def format_evidence_as_json(evidence):
     # Process adaptive state
     if 'adaptive-state' in evidence:
         for dim, data in evidence['adaptive-state'].items():
+            if dim == 'Presence':
+                print(data)
+                output['adaptive-state']['Presence'] = data
             if dim != 'Presence' and isinstance(data, dict):
                 if 'Category' in data and data['Category']:
                     output['adaptive-state'][dim] = {
@@ -253,6 +256,8 @@ def format_evidence_as_json(evidence):
     # Process maladaptive state
     if 'maladaptive-state' in evidence:
         for dim, data in evidence['maladaptive-state'].items():
+            if dim == 'Presence':
+                output['maladaptive-state']['Presence'] = data
             if dim != 'Presence' and isinstance(data, dict):
                 if 'Category' in data and data['Category']:
                     output['maladaptive-state'][dim] = {
@@ -286,11 +291,7 @@ def df_to_training_format(df):
 # print(f"\nTrain data: {len(train_data)} examples")
 # print(f"Val data: {len(val_data)} examples")
 
-# # Save for inspection
-# print("\n=== Saving sample data ===")
-# with open('train_sample.json', 'w') as f:
-#     json.dump(train_data[:5], f, indent=2)
-# print("Saved first 5 training examples to train_sample.json")
+
 
 def create_instruction_dataset(df):
     """
@@ -400,17 +401,7 @@ def create_instruction_dataset(df):
     
     return dataset_df
 
-# Create instruction dataset
-# instruction_df = create_instruction_dataset(df)
 
-# Verify first few examples
-# print("\n=== First 3 Examples ===")
-# for idx in range(min(3, len(instruction_df))):
-#     row = instruction_df.iloc[idx]
-#     print(f"\nExample {idx+1}:")
-#     print(f"Timeline: {row['timeline_id']}, Post: {row['post_index']}")
-#     print(f"Input: {row['input'][:100]}...")
-#     print(f"Output: {row['output'][:200]}...")
 
 
 

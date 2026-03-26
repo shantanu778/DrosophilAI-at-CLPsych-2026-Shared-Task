@@ -1,6 +1,7 @@
 from unsloth import FastLanguageModel 
 from trl import SFTTrainer
 import torch
+import json
 from transformers import (
     TrainingArguments,
     Trainer,
@@ -52,16 +53,33 @@ print("=" * 60)
 train_df = create_instruction_dataset(train_df)
 val_df = create_instruction_dataset(val_df)
 
+# Create instruction dataset
+# instruction_df = create_instruction_dataset(df)
+
+# Verify first few examples
+print("\n=== First 3 Examples ===")
+for idx in range(min(3, len(train_df))):
+    row = train_df.iloc[idx]
+    print(f"\nExample {idx+1}:")
+    print(f"Timeline: {row['timeline_id']}, Post: {row['post_index']}")
+    print(f"Input: {row['input'][:100]}...")
+    print(f"Output: {row['output'][:-100]}...")
+
 # ========== STEP 3: Train/Val Split ==========
-print("\n" + "=" * 60)
-print("STEP 3: Train/Val Split")
-print("=" * 60)
+# print("\n" + "=" * 60)
+# print("STEP 3: Train/Val Split")
+# print("=" * 60)
 
 # train_df, val_df = timeline_aware_split(instruction_df, test_size=0.15)
 
 # Convert to list format
 train_data = df_to_training_format(train_df)
 val_data = df_to_training_format(val_df)
+# Save for inspection
+print("\n=== Saving sample data ===")
+with open('train_sample.json', 'w') as f:
+    json.dump(train_data[:5], f, indent=2)
+print("Saved first 5 training examples to train_sample.json")
 
 # ========== STEP 4: Load Model ==========
 print("\n" + "=" * 60)
@@ -212,15 +230,14 @@ trainer = SFTTrainer(
     dataset_num_proc=2,
     packing=False,  # preserves timeline order
     args=TrainingArguments(
-        per_device_train_batch_size=2,  # small for 70B
-        gradient_accumulation_steps=16, # effective batch=32
+        per_device_train_batch_size=1,  # small for 70B
+        gradient_accumulation_steps=8, # effective batch=32
         per_device_eval_batch_size=2,
         output_dir="./llama3_8b_abcd",
-        num_train_epochs=20,  # shorter first run
+        num_train_epochs=10,  # shorter first run
         load_best_model_at_end=True,     # Load best at end
         metric_for_best_model="eval_loss",
-        greater_is_better=False,         # Lower loss = better
-        save_on_each_evaluation=True,    # Save after each eval
+        greater_is_better=False,         # Lower loss = better  # Save after each eval
         learning_rate=2e-4,
         warmup_steps=50,
         logging_steps=5,
