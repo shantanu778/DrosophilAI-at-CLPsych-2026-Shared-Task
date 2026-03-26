@@ -356,7 +356,7 @@ def create_instruction_dataset(df):
         3. Only include dimensions you detect in the post
         4. Multiple dimensions can be present simultaneously
         5. Brief analysis of adaptive elements
-        6. Adaptive and Maladaptive presence score (1-5) based on the subelement, Only consider integar Value
+        6. Adaptive and Maladaptive presence score (1-5) based on the subelement, Only consider integar value
         7. Overall reasoning"""
 
     dataset = []

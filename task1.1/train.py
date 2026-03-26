@@ -1,7 +1,5 @@
-from mlx_tune import FastLanguageModel, SFTTrainer
-from pprint import pprint
-import torch
-from huggingface_hub import login
+from unsloth import FastLanguageModel 
+from trl import SFTTrainer
 import torch
 from transformers import (
     TrainingArguments,
@@ -67,10 +65,11 @@ val_data = df_to_training_format(val_df)
 
 # ========== STEP 4: Load Model ==========
 print("\n" + "=" * 60)
-print("STEP 4: Loading Llama-3-8B Model")
+print("STEP 4: Loading Meta-Llama-3.1-8B")
 print("=" * 60)
 
-model_name = "mlx-community/Llama-3.3-70B-Instruct-4bit" 
+# model_name = "unsloth/Llama-3.3-70B-Instruct" 
+model_name = "unsloth/Meta-Llama-3.1-8B-Instruct"
 
 # bnb_config = BitsAndBytesConfig(
 #     load_in_4bit=True,
@@ -144,8 +143,8 @@ print("\n" + "=" * 60)
 print("STEP 6: Creating PyTorch Datasets")
 print("=" * 60)
 
-train_dataset = ABCDInstructionDataset(train_data, tokenizer, max_length=1024)
-val_dataset = ABCDInstructionDataset(val_data, tokenizer, max_length=1024)
+train_dataset = ABCDInstructionDataset(train_data, tokenizer, max_length=2048)
+val_dataset = ABCDInstructionDataset(val_data, tokenizer, max_length=2048)
 
 print(f"Train dataset: {len(train_dataset)} examples")
 print(f"Val dataset: {len(val_dataset)} examples")
@@ -216,8 +215,12 @@ trainer = SFTTrainer(
         per_device_train_batch_size=2,  # small for 70B
         gradient_accumulation_steps=16, # effective batch=32
         per_device_eval_batch_size=2,
-        output_dir="./llama33_70b_abcd",
-        num_train_epochs=10,  # shorter first run
+        output_dir="./llama3_8b_abcd",
+        num_train_epochs=20,  # shorter first run
+        load_best_model_at_end=True,     # Load best at end
+        metric_for_best_model="eval_loss",
+        greater_is_better=False,         # Lower loss = better
+        save_on_each_evaluation=True,    # Save after each eval
         learning_rate=2e-4,
         warmup_steps=50,
         logging_steps=5,
@@ -247,7 +250,7 @@ print("\n" + "=" * 60)
 print("STEP 9: Saving Model")
 print("=" * 60)
 
-trainer.save_model("./llama3-abcd-lora-final")
-tokenizer.save_pretrained("./llama3-abcd-lora-final")
+trainer.save_model("./llama3_8B-abcd-lora-final")
+tokenizer.save_pretrained("./llama3_8B-abcd-lora-final")
 
-print("\n✅ Training complete! Model saved to ./llama3-abcd-lora-final")
+print("\n✅ Training complete! Model saved to ./llama3_70B-abcd-lora-final")
