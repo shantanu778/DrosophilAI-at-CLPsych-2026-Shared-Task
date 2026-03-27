@@ -53,7 +53,7 @@ print("Loading trained model...")
 print("="*60)
 
 model, tokenizer = FastLanguageModel.from_pretrained(
-    model_name="unsloth/Meta-Llama-3.1-8B-Instruct",  # Your checkpoint directory
+    model_name="llama3_8b_abcd/checkpoint-50",  # Your checkpoint directory
     max_seq_length=2048,
     dtype=None,
     load_in_4bit=True,
@@ -78,12 +78,12 @@ print("="*60)
 print("Generating predictions...")
 print("="*60)
 
-def predict_abcd(post_text, instruction, model, tokenizer):
+def predict_abcd(instruction, post_text, model, tokenizer):
     """Generate ABCD prediction - FIXED version"""
     
     messages = [
         {"role": "system", "content": instruction},
-        {"role": "user", "content": f"Post: {post_text}"}
+        {"role": "user", "content": post_text}
     ]
     
     prompt = tokenizer.apply_chat_template(
@@ -91,7 +91,7 @@ def predict_abcd(post_text, instruction, model, tokenizer):
         tokenize=False,
         add_generation_prompt=True
     )
-    print(prompt)
+    # print(prompt)
     
     inputs = tokenizer([prompt], return_tensors="pt").to(model.device)
     print(inputs['input_ids'].shape)
@@ -102,7 +102,9 @@ def predict_abcd(post_text, instruction, model, tokenizer):
         temperature=0.1,
         top_p=0.9,
         do_sample=True,
-        use_cache=True,
+        use_cache=False,
+        pad_token_id=tokenizer.eos_token_id,
+        eos_token_id=tokenizer.eos_token_id,
     )
     print(outputs)
     response = tokenizer.decode(
@@ -127,32 +129,32 @@ predictions = []
 
 for item in tqdm(val_data, desc="Predicting"):
     # print(item)
-    # try:
+    try:
     # Generate
-    response = predict_abcd(
-        item['instruction'],
-        item['input'],
-        model,
-        tokenizer
-    )
-    print(response)
-    # Parse
-    prediction = parse_json_output(response)
-    ground_truth = parse_json_output(item['output'])
-    
-    predictions.append({
-        'prediction': prediction,
-        'ground_truth': ground_truth,
-        'raw_response': response
-    })
+        response = predict_abcd(
+            item['instruction'],
+            item['input'],
+            model,
+            tokenizer
+        )
+        print(response)
+        # Parse
+        prediction = parse_json_output(response)
+        ground_truth = parse_json_output(item['output'])
         
-    # except Exception as e:
-    #     print(f"\n❌ Error: {e}")
-    #     predictions.append({
-    #         'prediction': None,
-    #         'ground_truth': None,
-    #         'error': str(e)
-    #     })
+        predictions.append({
+            'prediction': prediction,
+            'ground_truth': ground_truth,
+            'raw_response': response
+        })
+        
+    except Exception as e:
+        print(f"\n❌ Error: {e}")
+        predictions.append({
+            'prediction': None,
+            'ground_truth': None,
+            'error': str(e)
+        })
 
 print(f"\n✅ Generated {len(predictions)} predictions\n")
 

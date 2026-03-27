@@ -316,38 +316,28 @@ def create_instruction_dataset(df):
         Subelements:
         """ + get_taxonomy_string() + """
 
-        Output in JSON format. For example,
-
-        [
-            {
-                "timeline_id": "91b6a42835",
-                "post_id": "28641e5b6d",
-                "adaptive-state": {
-                "Presence": 5,
-                "B-S": { "subelements": 1 },
-                "B-O": { "subelements": 1 },
-                "C-S": { "subelements": 1 },
-                "D": { "subelements": 3 }
-                },
-                "maladaptive-state": {
-                "Presence": 2,
-                "C-S": { "subelements": 2 }
-                }
+        Output in JSON format:
+        {
+            "timeline_id": "91b6a42835",
+            "post_id": "28641e5b6d",
+            "adaptive-state": {
+            "dimension": {
+                        "subelements": "(number) subelements name",
+                        "highlighted_evidence": "exact quote from post"
+                        "subelements": Presence Score (1-5),
+                        }
+                        
+            "Presence": Total Presence Score (1-5),
             },
-            {
-                "timeline_id": "306d938d4b",
-                "post_id": "308b0c2c6c",
-                "adaptive-state": {
-                "Presence": 2,
-                "B-S": { "subelements": 1 },
-                "B-O": { "subelements": 1 }
-                },
-                "maladaptive-state": {
-                "Presence": 2,
-                "A": { "subelements": 2 }
-                }
+            "maladaptive-state": {
+            "dimension": {
+                        "subelements": "(number) subelements name",
+                        "highlighted_evidence": "exact quote from post"
+                        "subelements": Presence Score (1-5),
+                        }
+            "Presence": Total Presence Score (1-5),
             }
-        ]
+        }
 
 
     
@@ -400,8 +390,6 @@ def create_instruction_dataset(df):
     print(f"From {dataset_df['timeline_id'].nunique()} timelines")
     
     return dataset_df
-
-
 
 
 

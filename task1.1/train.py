@@ -140,10 +140,10 @@ print("=" * 60)
 
 model = FastLanguageModel.get_peft_model(  # Unsloth's version
     model,
-    r=64,  # higher rank for 70B
+    r=8,  # higher rank for 70B
     target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
                     "gate_proj", "up_proj", "down_proj"],
-    lora_alpha=128,
+    lora_alpha=16,
     lora_dropout=0,
     bias="none",
     use_gradient_checkpointing="unsloth",  # VRAM saver
@@ -214,36 +214,31 @@ print(f"Expected: mps")
 #     save_total_limit=2,
 # )
 
-# data_collator = DataCollatorForLanguageModeling(
-#     tokenizer=tokenizer,
-#     mlm=False
-# )
+data_collator = DataCollatorForLanguageModeling(
+    tokenizer=tokenizer,
+    mlm=False
+)
 # add this import at top
 
-trainer = SFTTrainer(
+trainer = Trainer(
     model=model,
-    tokenizer=tokenizer,
     train_dataset=train_dataset,
     eval_dataset=val_dataset,
-    dataset_text_field="text",  # we'll add this
-    max_seq_length=2048,
-    dataset_num_proc=2,
-    packing=False,  # preserves timeline order
     args=TrainingArguments(
         per_device_train_batch_size=2,  # small for 70B
         gradient_accumulation_steps=8, # effective batch=32
         per_device_eval_batch_size=2,
         output_dir="./llama3_8b_abcd",
-        num_train_epochs=10,  # shorter first run
+        num_train_epochs=5,  # shorter first run
         load_best_model_at_end=True,     # Load best at end
         metric_for_best_model="eval_loss",
         greater_is_better=False,         # Lower loss = better  # Save after each eval
-        learning_rate=2e-4,
+        learning_rate=5e-4,
         warmup_steps=10,
         logging_steps=5,
         save_strategy="steps",
-        save_steps=20,
-        eval_steps=20,
+        save_steps=10,
+        eval_steps=5,
         eval_strategy="steps",
         save_total_limit=2,
         bf16=True,
@@ -252,7 +247,7 @@ trainer = SFTTrainer(
         lr_scheduler_type="cosine",
         max_grad_norm=1.0,
         report_to="none",
-        ddp_find_unused_parameters=False,  # DDP essential
+        train_sampling_strategy="sequential",
     ),
 )
 
@@ -271,4 +266,4 @@ print("=" * 60)
 trainer.save_model("./llama3_8B-abcd-lora-final")
 tokenizer.save_pretrained("./llama3_8B-abcd-lora-final")
 
-print("\n✅ Training complete! Model saved to ./llama3_70B-abcd-lora-final")
+print("\n✅ Training complete! Model saved to ./llama3_8B-abcd-lora-final")
