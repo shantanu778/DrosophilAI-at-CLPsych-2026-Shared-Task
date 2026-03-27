@@ -218,7 +218,7 @@ print(f"Expected: mps")
 #     tokenizer=tokenizer,
 #     mlm=False
 # )
- # add this import at top
+# add this import at top
 
 trainer = SFTTrainer(
     model=model,
@@ -245,6 +245,7 @@ trainer = SFTTrainer(
         save_steps=20,
         eval_steps=20,
         eval_strategy="steps",
+        save_total_limit=2,
         bf16=True,
         optim="adamw_8bit",
         weight_decay=0.01,
