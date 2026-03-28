@@ -6,7 +6,7 @@ Generate predictions on validation dataset and calculate metrics
 import json
 import warnings
 warnings.filterwarnings('ignore')
-
+import argparse
 import torch
 from unsloth import FastLanguageModel
 from tqdm import tqdm
@@ -15,6 +15,12 @@ import numpy as np
 from sklearn.metrics import precision_recall_fscore_support, classification_report
 from dataset import CLPsychDataLoader, create_instruction_dataset, df_to_training_format
 
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--model_name", help="Exact location of Pretrained Models",
+                type=str)
+args = parser.parse_args()
+MODELS = args.model_name
 
 # ========== STEP 1: Load Data ==========
 print("=" * 60)
@@ -53,7 +59,7 @@ print("Loading trained model...")
 print("="*60)
 
 model, tokenizer = FastLanguageModel.from_pretrained(
-    model_name="llama3_8B-abcd-lora-final-V2",  # Your checkpoint directory
+    model_name=MODELS,  # Your checkpoint directory
     max_seq_length=2048,
     dtype=None,
     load_in_4bit=True,

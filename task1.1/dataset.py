@@ -326,7 +326,6 @@ def create_instruction_dataset(df):
             "dimension": {
                         "subelements": "(number) subelements name",
                         "highlighted_evidence": "exact quote from post"
-                        "subelements": Presence Score (1-5),
                         }
                         
             "Presence": Total Presence Score (1-5),
@@ -335,7 +334,6 @@ def create_instruction_dataset(df):
             "dimension": {
                         "subelements": "(number) subelements name",
                         "highlighted_evidence": "exact quote from post"
-                        "subelements": Presence Score (1-5),
                         }
             "Presence": Total Presence Score (1-5),
             }
@@ -349,8 +347,8 @@ def create_instruction_dataset(df):
         3. Only include dimensions you detect in the post
         4. Multiple dimensions can be present simultaneously
         5. Brief analysis of adaptive elements
-        6. Adaptive and Maladaptive presence score (1-5) based on the subelement, Only consider integar value
-        7. Overall reasoning"""
+        6. Adaptive and Maladaptive presence score (1-5) based on the subelement, Only consider integar value. 
+        7. Presence score will not be NULL If Adaptive and/or Maladaptive subelements present."""
 
     dataset = []
     

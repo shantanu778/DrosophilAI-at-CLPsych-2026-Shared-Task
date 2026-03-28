@@ -14,6 +14,10 @@ from dataset import (CLPsychDataLoader, create_instruction_dataset, df_to_traini
                       ABCDInstructionDataset)
 
 
+'''
+Python task1.1/train.py --model_name phi/qwen/llama
+'''
+
 def get_device():
     """Detect best available device on Mac"""
     if torch.cuda.is_available():
@@ -48,6 +52,8 @@ def formatting_prompts_func(examples):
         texts.append(text)
         
     return {"text": texts}
+
+
 
 
 if __name__=='__main__':
