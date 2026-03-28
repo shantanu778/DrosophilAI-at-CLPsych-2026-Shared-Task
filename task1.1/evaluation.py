@@ -33,7 +33,7 @@ print("=" * 60)
 
 val_df = create_instruction_dataset(val_df)
 
-val_data = df_to_training_format(val_df)
+val_data = df_to_training_format(val_df[:10])
 
 # Create instruction dataset
 # instruction_df = create_instruction_dataset(df)
@@ -53,7 +53,7 @@ print("Loading trained model...")
 print("="*60)
 
 model, tokenizer = FastLanguageModel.from_pretrained(
-    model_name="llama3_8b_abcd/checkpoint-50",  # Your checkpoint directory
+    model_name="llama3_8B-abcd-lora-final-V2",  # Your checkpoint directory
     max_seq_length=2048,
     dtype=None,
     load_in_4bit=True,
@@ -94,7 +94,6 @@ def predict_abcd(instruction, post_text, model, tokenizer):
     # print(prompt)
     
     inputs = tokenizer([prompt], return_tensors="pt").to(model.device)
-    print(inputs['input_ids'].shape)
     
     outputs = model.generate(
         **inputs,
@@ -106,7 +105,6 @@ def predict_abcd(instruction, post_text, model, tokenizer):
         pad_token_id=tokenizer.eos_token_id,
         eos_token_id=tokenizer.eos_token_id,
     )
-    print(outputs)
     response = tokenizer.decode(
         outputs[0][inputs['input_ids'].shape[1]:],
         skip_special_tokens=True
@@ -143,6 +141,8 @@ for item in tqdm(val_data, desc="Predicting"):
         ground_truth = parse_json_output(item['output'])
         
         predictions.append({
+            'timeline_id':item['timeline_id'],
+            'post_id': item['post_id'],
             'prediction': prediction,
             'ground_truth': ground_truth,
             'raw_response': response

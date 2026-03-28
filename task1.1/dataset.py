@@ -261,7 +261,7 @@ def format_evidence_as_json(evidence):
             if dim != 'Presence' and isinstance(data, dict):
                 if 'Category' in data and data['Category']:
                     output['maladaptive-state'][dim] = {
-                        'Category': data['Category'],
+                        'subelement': data['Category'],
                         'highlighted_evidence': data.get('highlighted_evidence', '')
                     }
     
@@ -277,6 +277,8 @@ def df_to_training_format(df):
     
     for idx, row in df.iterrows():
         training_data.append({
+            'timeline_id': row['timeline_id'],
+            'post_id': row['post_id'],
             'instruction': row['instruction'],
             'input': row['input'],
             'output': row['output']
