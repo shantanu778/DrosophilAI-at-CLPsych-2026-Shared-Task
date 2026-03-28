@@ -69,14 +69,14 @@ if __name__=='__main__':
     LR = args.lr
 
     if args.model_name =='qwen':
-        model_name = "unsloth/Qwen3.5-4B"
+        model_name = "unsloth/Qwen3.5-9B"
     elif args.model_name=='phi':
         model_name="unsloth/phi-4"
     elif args.model_name=='llama':
-        model_name="unsloth/Meta-Llama-3.1-8B-Instruct"
+        model_name="unsloth/llama-3-8b-Instruct-bnb-4bit"
     else:
         assert 'This model in not available yet. we choose llama intead'
-        model_name="unsloth/Meta-Llama-3.1-8B-Instruct"
+        model_name="unsloth/llama-3-8b-Instruct-bnb-4bit"
     # ========== STEP 1: Load Data ==========
     print("=" * 60)
     print("STEP 1: Loading Data")

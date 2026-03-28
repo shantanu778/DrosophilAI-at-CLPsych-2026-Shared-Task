@@ -83,9 +83,9 @@ TAXONOMY = {
             ],
       'maladaptive': 
           [
-              '(6) Expectation that competence needs will not be met',
-              '(4) Expectation that autonomy needs will not be met',
-              '(2) Expectation that relatedness needs will not be met'
+            '(6) Expectation that competence needs will not be met',
+            '(4) Expectation that autonomy needs will not be met',
+            '(2) Expectation that relatedness needs will not be met'
           ]
     }
 }
@@ -323,32 +323,37 @@ def create_instruction_dataset(df):
             "timeline_id": "91b6a42835",
             "post_id": "28641e5b6d",
             "adaptive-state": {
-            "dimension": {
-                        "subelements": "(number) subelements name",
-                        "highlighted_evidence": "exact quote from post"
-                        }
-                        
-            "Presence": Total Presence Score (1-5),
+                "C-S": {
+                    "Category": "(1) Self-acceptance and compassion",
+                    "highlighted_evidence": "I feel other people with chronic illness deserve love. Why shouldnt I?"
+                },
+                "C-O": {
+                    "Category": "(1) Perception of the other as related",
+                    "highlighted_evidence": "till my parents spoke up"
+                },
+                "D": {
+                    "Category": "(1) Relatedness",
+                    "highlighted_evidence": "What's the point of you cant have love? How do I break free from that"
+                },     
+            "Presence": 3,
             },
             "maladaptive-state": {
-            "dimension": {
-                        "subelements": "(number) subelements name",
-                        "highlighted_evidence": "exact quote from post"
-                        }
-            "Presence": Total Presence Score (1-5),
+                "subelements":  "(4) Depressed, despair, hopeless",
+                "highlighted_evidence": "Getting closer to the dark thoughts and planning"
+                }
+            "Presence": 2,
             }
         }
-
-
     
         Rules:
         1. Each dimension can appear in adaptive, maladaptive, both, or neither
-        2. Evidence must be exact quote from the post (3-15 words)
+        2. Highlighted Evidence must be exact quote from the post (3-15 words)
         3. Only include dimensions you detect in the post
         4. Multiple dimensions can be present simultaneously
-        5. Brief analysis of adaptive elements
-        6. Adaptive and Maladaptive presence score (1-5) based on the subelement, Only consider integar value. 
-        7. Presence score will not be NULL If Adaptive and/or Maladaptive subelements present."""
+        5. Adaptive and Maladaptive presence score (1-5) based on the subelement, Only consider integar value. 
+        6. Presence score will not be NULL If Adaptive and/or Maladaptive subelements present.
+        7. Keep the answer concise and only include relevant information from the post. And Limit the length of output to 500 characters.
+        """
 
     dataset = []
     
@@ -453,8 +458,8 @@ class ABCDInstructionDataset(Dataset):
 
 
 if __name__=='__main__':
-    train_loader = CLPsychDataLoader('..tasks12/', split='train')
-    val_loader = CLPsychDataLoader('..tasks12/', split='val')
+    train_loader = CLPsychDataLoader('tasks12/', split='train')
+    val_loader = CLPsychDataLoader('tasks12/', split='val')
     train_df = train_loader.load()
     print("Training Set Stats")
     val_df = val_loader.load()
@@ -464,3 +469,9 @@ if __name__=='__main__':
     print("Validation Set Stats")
     val_loader.verify_order()
     val_loader.get_stats()
+
+    val_df = create_instruction_dataset(val_df)
+    val_data = df_to_training_format(val_df)
+    with open('groud_truth.json', 'w') as f:
+        json.dump(val_data, f, indent=2)
+    print("Saved first validation examples")
