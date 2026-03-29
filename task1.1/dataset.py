@@ -83,9 +83,9 @@ TAXONOMY = {
             ],
       'maladaptive': 
           [
-            '(6) Expectation that competence needs will not be met',
-            '(4) Expectation that autonomy needs will not be met',
-            '(2) Expectation that relatedness needs will not be met'
+              '(6) Expectation that competence needs will not be met',
+              '(4) Expectation that autonomy needs will not be met',
+              '(2) Expectation that relatedness needs will not be met'
           ]
     }
 }
@@ -233,12 +233,15 @@ class CLPsychDataLoader:
 # val_loader.get_stats()
 
 
-def format_evidence_as_json(evidence):
+def format_evidence_as_json(evidence, timeline_id=None, post_id=None):
     """Convert evidence dict to clean JSON string"""
-    output = {
-        'adaptive-state': {},
-        'maladaptive-state': {}
-    }
+    output = {}
+    if timeline_id:
+        output['timeline_id'] = timeline_id
+    if post_id:
+        output['post_id'] = post_id
+    output['adaptive-state'] = {}
+    output['maladaptive-state'] = {}
     
     # Process adaptive state
     if 'adaptive-state' in evidence:
@@ -301,59 +304,32 @@ def create_instruction_dataset(df):
     Maintains order from sorted DataFrame
     """
     
-    instruction = """You are an expert in mental health text analysis using the MIND framework. Analyze the social media post and identify ABCD (Affect, Behavior, Cognition, Desire) elements and their subelements. Analyze the post and rate the presence of adaptive and maladaptive self-states based on subelements on a scale of 1-5.
+    instruction = """Analyze the social media post using the MIND framework. Identify ABCD self-state elements and output ONLY a JSON object.
 
-        For each post, identify:
-        - Adaptive self-state elements (supporting well-being)
-        - Maladaptive self-state elements (negative patterns)
+                Dimensions: A (Affect), B-S (Behavior-Self), B-O (Behavior-Others), C-S (Cognition-Self), C-O (Cognition-Others), D (Desire).
+                Each dimension may appear in adaptive-state, maladaptive-state, both, or neither.
+                Include only dimensions detected. Evidence must be an exact quote (3-15 words).
+                Presence score is an integer 1-5 based on intensity. Do not output NULL.
 
-        ABCD Dimensions:
-        - A: Affect (Emotional tone or mood)
-        - B-S: Behavior toward Self (Actions or tendencies directed inward)
-        - B-O: Behavior toward Others (Actions or tendencies directed outward)
-        - C-S: Cognition toward Self (C-S) (Beliefs, interpretations, and appraisals about self)
-        - C-O: Cognition toward Others (C-O) (Beliefs, interpretations, and appraisals about others)
-        - D: Desire (Motivations, needs, wishes, and expectations)
+                Subelements:
+                """ + get_taxonomy_string() + """
 
-        Subelements:
-        """ + get_taxonomy_string() + """
-
-        Output in JSON format:
-        {
-            "timeline_id": "91b6a42835",
-            "post_id": "28641e5b6d",
-            "adaptive-state": {
-                "C-S": {
-                    "Category": "(1) Self-acceptance and compassion",
-                    "highlighted_evidence": "I feel other people with chronic illness deserve love. Why shouldnt I?"
-                },
-                "C-O": {
-                    "Category": "(1) Perception of the other as related",
-                    "highlighted_evidence": "till my parents spoke up"
-                },
-                "D": {
-                    "Category": "(1) Relatedness",
-                    "highlighted_evidence": "What's the point of you cant have love? How do I break free from that"
-                },     
-            "Presence": 3,
-            },
-            "maladaptive-state": {
-                "subelements":  "(4) Depressed, despair, hopeless",
-                "highlighted_evidence": "Getting closer to the dark thoughts and planning"
-                }
-            "Presence": 2,
-            }
-        }
-    
-        Rules:
-        1. Each dimension can appear in adaptive, maladaptive, both, or neither
-        2. Highlighted Evidence must be exact quote from the post (3-15 words)
-        3. Only include dimensions you detect in the post
-        4. Multiple dimensions can be present simultaneously
-        5. Adaptive and Maladaptive presence score (1-5) based on the subelement, Only consider integar value. 
-        6. Presence score will not be NULL If Adaptive and/or Maladaptive subelements present.
-        7. Keep the answer concise and only include relevant information from the post. And Limit the length of output to 500 characters.
-        """
+                Output ONLY valid JSON, no explanation:
+                {
+                    "timeline_id": "<actual timeline_id>",
+                    "post_id": "<actual post_id>",
+                    "adaptive-state": {
+                        "A": {"subelement": "(5) Content, happy, joy, hopeful", "highlighted_evidence": "exact quote"},
+                        "B-S": {"subelement": "(1) Self care and improvement", "highlighted_evidence": "exact quote"},
+                        "Presence": 3
+                    },
+                    "maladaptive-state": {
+                        "A": {"subelement": "(2) Anxious/ fearful/ tense", "highlighted_evidence": "exact quote"},
+                        "C-S": {"subelement": "(2) Self criticism", "highlighted_evidence": "exact quote"},
+                        "D": {"subelement": "(2) Expectation that relatedness needs will not be met", "highlighted_evidence": "exact quote"},
+                        "Presence": 4
+                    }
+                }"""
 
     dataset = []
     
@@ -384,7 +360,7 @@ def create_instruction_dataset(df):
             'post_id': row['post_id'],
             'instruction': instruction,
             'input': f"Post: {row['text']}",
-            'output': format_evidence_as_json(row['evidence'])
+            'output': format_evidence_as_json(row['evidence'], timeline_id=row['timeline_id'], post_id=row['post_id'])
         })
     
     # Convert back to DataFrame to maintain order
@@ -458,8 +434,8 @@ class ABCDInstructionDataset(Dataset):
 
 
 if __name__=='__main__':
-    train_loader = CLPsychDataLoader('tasks12/', split='train')
-    val_loader = CLPsychDataLoader('tasks12/', split='val')
+    train_loader = CLPsychDataLoader('..tasks12/', split='train')
+    val_loader = CLPsychDataLoader('..tasks12/', split='val')
     train_df = train_loader.load()
     print("Training Set Stats")
     val_df = val_loader.load()
@@ -470,8 +446,4 @@ if __name__=='__main__':
     val_loader.verify_order()
     val_loader.get_stats()
 
-    val_df = create_instruction_dataset(val_df)
-    val_data = df_to_training_format(val_df)
-    with open('groud_truth.json', 'w') as f:
-        json.dump(val_data, f, indent=2)
-    print("Saved first validation examples")
+
