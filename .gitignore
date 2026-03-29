@@ -7,6 +7,7 @@ __pycache__/
 *.so
 *.pt
 # folders
+__MACOSX
 tasks12/
 temp_backup/
 unsloth_compiled_cache/
@@ -18,6 +19,17 @@ Clpsych2026_Guidelines.pdf
 llama3_presence_lora/
 llama3_presence_rating/
 llama3_presence_rating_v2/
+ground_truth.json
+llama-final/
+llama/
+llama3_8B-abcd-lora-final-V2/
+llama3_8B-abcd-lora-final/
+llama3_8B_abcd_v2/
+llama3_8b_abcd/
+llama_70b.sh
+phi-final/
+phi/
+qwen/
 
 # Distribution / packaging
 .Python

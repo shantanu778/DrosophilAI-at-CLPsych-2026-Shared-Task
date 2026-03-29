@@ -119,22 +119,24 @@ if __name__ == "__main__":
         prompt = tokenizer.apply_chat_template(
             messages,
             tokenize=False,
-            add_generation_prompt=True
+            add_generation_prompt=True,
+            
         )
         # print(prompt)
         
-        inputs = tokenizer([prompt], return_tensors="pt").to(model.device)
+        inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
         
-        outputs = model.generate(
-            **inputs,
-            max_new_tokens=512,
-            temperature=0.1,
-            top_p=0.9,
-            do_sample=True,
-            use_cache=False,
-            pad_token_id=tokenizer.eos_token_id,
-            eos_token_id=tokenizer.eos_token_id,
-        )
+        with torch.no_grad():
+            outputs = model.generate(
+                **inputs,
+                max_new_tokens=512,
+                temperature=0.1,
+                top_p=0.9,
+                do_sample=True,
+                use_cache=True,
+                pad_token_id=tokenizer.eos_token_id,
+                eos_token_id=tokenizer.eos_token_id,
+            )
         response = tokenizer.decode(
             outputs[0][inputs['input_ids'].shape[1]:],
             skip_special_tokens=True
@@ -171,11 +173,8 @@ if __name__ == "__main__":
             ground_truth = parse_json_output(item['output'])
             
             predictions.append({
-                'timeline_id':item['timeline_id'],
-                'post_id': item['post_id'],
                 'prediction': prediction,
-                'ground_truth': ground_truth,
-                'raw_response': response
+                'ground_truth': ground_truth
             })
             
         except Exception as e:

@@ -12,7 +12,7 @@ from mlx_tune import FastLanguageModel, SFTTrainer, SFTConfig
 from datasets import Dataset
 # from trl import SFTTrainer
 from transformers import TrainingArguments
-from dataset import prepare_instruction_dataset
+from dataset_v1 import prepare_instruction_dataset
 
 # ========== Prepare Both Splits ==========
 if __name__ == "__main__":

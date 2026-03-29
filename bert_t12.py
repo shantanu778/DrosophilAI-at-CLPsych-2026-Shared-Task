@@ -10,7 +10,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error
 from scipy.stats import pearsonr
 import torch.nn as nn
 from transformers import AutoModel, AutoTokenizer
-from dataset import PresenceRatingDataset, CLPsychDataLoader
+from dataset_v1 import PresenceRatingDataset, CLPsychDataLoader
 
 class MentalRoBERTa_PresenceRating(nn.Module):
     """
