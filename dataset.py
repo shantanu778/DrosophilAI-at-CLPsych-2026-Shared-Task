@@ -1,57 +1,110 @@
-import os
 import json
 import pandas as pd
+import numpy as np
 from glob import glob
+import os   
 from collections import defaultdict
-import torch
 from torch.utils.data import Dataset
-from transformers import AutoTokenizer
 
-class PresenceRatingDataset(Dataset):
-    """Dataset for presence rating with Mental-RoBERTa"""
-    
-    def __init__(self, dataframe, tokenizer, max_length=512):
-        self.df = dataframe.reset_index(drop=True)
-        self.tokenizer = tokenizer
-        self.max_length = max_length
-        
-        # Extract presence scores from evidence
-        self.df['adaptive_score'] = self.df['evidence'].apply(
-            lambda x: x.get('adaptive-state', {}).get('Presence', 1)
-        )
-        self.df['maladaptive_score'] = self.df['evidence'].apply(
-            lambda x: x.get('maladaptive-state', {}).get('Presence', 1)
-        )
-        
-        print(f"\n=== Presence Score Distribution ===")
-        print(f"Adaptive scores:")
-        print(self.df['adaptive_score'].value_counts().sort_index())
-        print(f"\nMaladaptive scores:")
-        print(self.df['maladaptive_score'].value_counts().sort_index())
-    
-    def __len__(self):
-        return len(self.df)
-    
-    def __getitem__(self, idx):
-        row = self.df.iloc[idx]
-        
-        # Tokenize
-        encoding = self.tokenizer(
-            row['text'],
-            max_length=self.max_length,
-            padding='max_length',
-            truncation=True,
-            return_tensors='pt'
-        )
-        
-        return {
-            'input_ids': encoding['input_ids'].squeeze(),
-            'attention_mask': encoding['attention_mask'].squeeze(),
-            'adaptive_score': torch.tensor(row['adaptive_score'], dtype=torch.float),
-            'maladaptive_score': torch.tensor(row['maladaptive_score'], dtype=torch.float),
-            'post_id': row['post_id'],
-            'timeline_id': row['timeline_id']
-        }
+
+
+TAXONOMY = {
+    'A': {
+        'adaptive': [
+            ' (1) Calm/ laid back',
+            ' (3) Sad, Emotional pain grieving',
+            ' (5) Content, happy, joy, hopeful',
+            ' (7) Vigor / energetic',
+            ' (9) Justifiable anger/ assertive',
+            ' anger, justifiable outrage',
+            '(11) Proud',
+            '(13) Feel loved, belong'
+            ],
+        'maladaptive': [
+            '(2) Anxious/ fearful/ tense',
+            '(4) Depressed, despair, hopeless',
+            '(6) Mania',
+            '(8) Apathic, don’t care, blunted',
+            '(10) Angry (aggression), disgust contempt'
+            '(12) Ashamed, guilty',
+            '(14) Feel lonely'
+            ]
+          },
+    'B-S': {
+        'adaptive': [
+            '(1) Self care and improvement'
+            ],
+        'maladaptive': [
+            '(2) Self harm, neglect and avoidance'
+            ]
+    },
+    'B-O': {
+        'adaptive': 
+            [
+            '(1) Relating behavior',
+            '(3) Autonomous or adaptive control behavior'
+            ],
+        'maladaptive': [
+            '(2) Fight or flight behavior',
+            '(4) Over controlled or controlling behavior'
+            ]
+    },
+    'C-S': 
+        {
+        'adaptive': 
+            [
+            '(1) Self-acceptance and compassion'
+            ],
+          'maladaptive': 
+              [
+              '(2) Self criticism'
+              ]
+        },
+    'C-O': 
+        {
+            'adaptive': 
+            [
+                '(1) Perception of the other as related',
+                '(3) Perception of the other as facilitating autonomy needs'
+            ],
+              'maladaptive': 
+              [
+                  '(4) Perception of the other as blocking autonomy needs',
+                  '(2) Perception of the other as detached or over attached'
+                  ]
+          },
+    'D': 
+    {
+        'adaptive': 
+            [
+            '(5) Competence, self esteem, self-care',
+            '(1) Relatedness',
+            '(3) Autonomy and adaptive control'
+            ],
+      'maladaptive': 
+          [
+              '(6) Expectation that competence needs will not be met',
+              '(4) Expectation that autonomy needs will not be met',
+              '(2) Expectation that relatedness needs will not be met'
+          ]
+    }
+}
+
+
+def get_taxonomy_string():
+    """Format taxonomy for prompt"""
+    lines = []
+    for dim, categories in TAXONOMY.items():
+        lines.append(f"\n**{dim}**")
+        lines.append("Adaptive:")
+        for cat in categories['adaptive']:
+            lines.append(f"  - {cat}")
+        lines.append("Maladaptive:")
+        for cat in categories['maladaptive']:
+            lines.append(f"  - {cat}")
+    return "\n".join(lines)
+
+
 
 class CLPsychDataLoader:
     """Load CLPsych data with proper ordering"""
@@ -171,246 +224,224 @@ class CLPsychDataLoader:
         for dim in ['A', 'B-S', 'B-O', 'C-S', 'C-O', 'D']:
             print(f"  {dim}: {maladaptive_counts[dim]}")
 
-
-if __name__ == "__main__":
-    # Load data
-    train_loader = CLPsychDataLoader('tasks12/', split='train')
-    val_loader = CLPsychDataLoader('tasks12/', split='val')
-    # test_loader = CLPsychDataLoader('tasks12/', split='test')
-    val_df = val_loader.load()
-    val_loader.verify_order()
-    val_loader.get_stats()
+# Load data
+# train_loader = CLPsychDataLoader('tasks12/', split='train')
+# val_loader = CLPsychDataLoader('tasks12/', split='val')
+# # test_loader = CLPsychDataLoader('tasks12/', split='test')
+# df = val_loader.load()
+# val_loader.verify_order()
+# val_loader.get_stats()
 
 
-# for i in range(min(3, len(val_df))):
-#     print(f"\n--- Example {i+1} ---")
-#     evidence = val_df.iloc[i]['evidence']
-#     print(f"Post: {val_df.iloc[i]['text'][:80]}...")
-#     print(f"\nEvidence keys: {evidence.keys()}")
+def format_evidence_as_json(evidence, timeline_id=None, post_id=None):
+    """Convert evidence dict to clean JSON string"""
+    output = {}
+    if timeline_id:
+        output['timeline_id'] = timeline_id
+    if post_id:
+        output['post_id'] = post_id
+    output['adaptive-state'] = {}
+    output['maladaptive-state'] = {}
     
-#     # Check adaptive-state
-#     if 'adaptive-state' in evidence:
-#         print(f"\nAdaptive-state keys: {evidence['adaptive-state'].keys()}")
-#         print(f"Adaptive-state content:")
-#         for key, value in evidence['adaptive-state'].items():
-#             print(f"  {key}: {value}")
+    # Process adaptive state
+    if 'adaptive-state' in evidence:
+        for dim, data in evidence['adaptive-state'].items():
+            if dim == 'Presence':
+                # print(data)
+                output['adaptive-state']['Presence'] = data
+            if dim != 'Presence' and isinstance(data, dict):
+                if 'Category' in data and data['Category']:
+                    output['adaptive-state'][dim] = {
+                        'Category': data['Category'],
+                        'highlighted_evidence': data.get('highlighted_evidence', '')
+                    }
     
-#     # Check maladaptive-state
-#     if 'maladaptive-state' in evidence:
-#         print(f"\nMaladaptive-state keys: {evidence['maladaptive-state'].keys()}")
-#         print(f"Maladaptive-state content:")
-#         for key, value in evidence['maladaptive-state'].items():
-#             print(f"  {key}: {value}")
+    # Process maladaptive state
+    if 'maladaptive-state' in evidence:
+        for dim, data in evidence['maladaptive-state'].items():
+            if dim == 'Presence':
+                output['maladaptive-state']['Presence'] = data
+            if dim != 'Presence' and isinstance(data, dict):
+                if 'Category' in data and data['Category']:
+                    output['maladaptive-state'][dim] = {
+                        'subelement': data['Category'],
+                        'highlighted_evidence': data.get('highlighted_evidence', '')
+                    }
     
-#     print("\n" + "="*60)
+    return json.dumps(output, indent=2)
 
 
-"""
-Prepare instruction tuning data for Task 1.2 (Presence Rating)
-"""
-
-
-def create_presence_instruction(post_text, evidence):
+def df_to_training_format(df):
     """
-    Create instruction-tuning example for presence rating
-    
-    Args:
-        post_text: The social media post
-        evidence: ABCD evidence with presence scores
-    
-    Returns:
-        Dict with instruction, input, output
+    Convert DataFrame to list of dicts for training
+    Order is already preserved in DataFrame
     """
-    
-    instruction = """You are an expert in mental health text analysis using the MIND framework. Analyze the social media post and rate the presence of adaptive and maladaptive self-states on a scale of 1-5.
-
-    Rating Scale:
-    1 - Not present: The self-state is not expressed in the post.
-    2 - Somewhat present: The self-state is expressed, but plays a subtle, limited role.
-    3 - Moderately present: The self-state is clearly expressed and moderately contributes.
-    4 - Much present: The self-state strongly influences and shapes the experience.
-    5 - Highly present: The self-state strongly shapes and clearly defines the overall experience.
-
-    Analyze the post and provide:
-    1. Brief analysis of adaptive elements
-    2. Adaptive presence score (1-5)
-    3. Brief analysis of maladaptive elements
-    4. Maladaptive presence score (1-5)
-    5. Overall reasoning
-
-    Output in JSON format."""
-
-    # Extract presence scores
-    adaptive_score = evidence.get('adaptive-state', {}).get('Presence', 1)
-    maladaptive_score = evidence.get('maladaptive-state', {}).get('Presence', 1)
-    
-    # Generate analysis text from ABCD elements
-    adaptive_analysis = generate_adaptive_analysis(evidence, adaptive_score)
-    maladaptive_analysis = generate_maladaptive_analysis(evidence, maladaptive_score)
-    reasoning = generate_reasoning(evidence, adaptive_score, maladaptive_score)
-    
-    # Output JSON
-    output = {
-        "adaptive_analysis": adaptive_analysis,
-        "adaptive_score": adaptive_score,
-        "maladaptive_analysis": maladaptive_analysis,
-        "maladaptive_score": maladaptive_score,
-        "reasoning": reasoning
-    }
-    
-    return {
-        "instruction": instruction,
-        "input": f"Post: {post_text}",
-        "output": json.dumps(output, indent=2)
-    }
-
-
-def generate_adaptive_analysis(evidence, score):
-    """Generate adaptive analysis text from ABCD elements"""
-    
-    adaptive_state = evidence.get('adaptive-state', {})
-    elements = []
-    
-    # Extract adaptive ABCD elements
-    for dim in ['A', 'B-S', 'B-O', 'C-S', 'C-O', 'D']:
-        if dim in adaptive_state and adaptive_state[dim].get('Category'):
-            category = adaptive_state[dim]['Category']
-            evidence_text = adaptive_state[dim].get('highlighted_evidence', '')
-            if evidence_text:
-                elements.append(f"{dim} ({category}): '{evidence_text}'")
-            else:
-                elements.append(f"{dim}: {category}")
-    
-    # Generate text based on score
-    if score == 5:
-        if elements:
-            return f"Highly present. Adaptive self-states clearly define the experience: {'; '.join(elements)}. These elements dominate the post."
-        else:
-            return "Highly present with strong adaptive orientation throughout."
-    elif score == 4:
-        if elements:
-            return f"Much present. Adaptive self-states strongly shape the post: {'; '.join(elements)}. These elements significantly influence the experience."
-        else:
-            return "Much present with clear adaptive elements."
-    elif score == 3:
-        if elements:
-            return f"Moderately present. Adaptive elements include: {'; '.join(elements)}. These contribute to the overall experience."
-        else:
-            return "Moderately present with some adaptive elements."
-    elif score == 2:
-        if elements:
-            return f"Somewhat present. Subtle adaptive elements: {'; '.join(elements)}. These play a limited role."
-        else:
-            return "Somewhat present but subtle."
-    else:  # score == 1
-        return "Not present. No clear adaptive self-states expressed."
-
-
-def generate_maladaptive_analysis(evidence, score):
-    """Generate maladaptive analysis text from ABCD elements"""
-    
-    maladaptive_state = evidence.get('maladaptive-state', {})
-    elements = []
-    
-    # Extract maladaptive ABCD elements
-    for dim in ['A', 'B-S', 'B-O', 'C-S', 'C-O', 'D']:
-        if dim in maladaptive_state and maladaptive_state[dim].get('Category'):
-            category = maladaptive_state[dim]['Category']
-            evidence_text = maladaptive_state[dim].get('highlighted_evidence', '')
-            if evidence_text:
-                elements.append(f"{dim} ({category}): '{evidence_text}'")
-            else:
-                elements.append(f"{dim}: {category}")
-    
-    # Generate text based on score
-    if score == 5:
-        if elements:
-            return f"Highly present. Maladaptive self-states clearly define the experience: {'; '.join(elements)}. These patterns dominate."
-        else:
-            return "Highly present with strong maladaptive patterns."
-    elif score == 4:
-        if elements:
-            return f"Much present. Maladaptive self-states strongly shape the post: {'; '.join(elements)}. These significantly influence the experience."
-        else:
-            return "Much present with clear maladaptive elements."
-    elif score == 3:
-        if elements:
-            return f"Moderately present. Maladaptive elements include: {'; '.join(elements)}. These contribute to the experience."
-        else:
-            return "Moderately present with some maladaptive elements."
-    elif score == 2:
-        if elements:
-            return f"Somewhat present. Subtle maladaptive elements: {'; '.join(elements)}. These play a limited role."
-        else:
-            return "Somewhat present but subtle."
-    else:  # score == 1
-        return "Not present. No clear maladaptive self-states expressed."
-
-
-def generate_reasoning(evidence, adaptive_score, maladaptive_score):
-    """Generate overall reasoning"""
-    
-    adaptive_state = evidence.get('adaptive-state', {})
-    maladaptive_state = evidence.get('maladaptive-state', {})
-    
-    adaptive_count = sum(1 for dim in ['A', 'B-S', 'B-O', 'C-S', 'C-O', 'D'] 
-                         if dim in adaptive_state and adaptive_state[dim].get('Category'))
-    maladaptive_count = sum(1 for dim in ['A', 'B-S', 'B-O', 'C-S', 'C-O', 'D'] 
-                            if dim in maladaptive_state and maladaptive_state[dim].get('Category'))
-    
-    score_map = {1: "not present", 2: "subtly present", 3: "moderately present", 
-                 4: "strongly present", 5: "dominantly present"}
-    
-    reasoning = f"The post shows {score_map[adaptive_score]} adaptive self-states ({adaptive_count} elements detected) and {score_map[maladaptive_score]} maladaptive self-states ({maladaptive_count} elements detected)."
-    
-    # Add context about dominance
-    if adaptive_score > maladaptive_score + 1:
-        reasoning += " The adaptive orientation clearly dominates the experience."
-    elif maladaptive_score > adaptive_score + 1:
-        reasoning += " The maladaptive patterns clearly dominate the experience."
-    elif adaptive_score == maladaptive_score:
-        reasoning += " Both adaptive and maladaptive states are equally present."
-    else:
-        reasoning += " The post shows a mix of both states."
-    
-    return reasoning
-
-
-def prepare_instruction_dataset(data_path, split='train'):
-    """Prepare complete instruction dataset"""
-    
-    print(f"\n{'='*60}")
-    print(f"Preparing Instruction Dataset for {split}")
-    print('='*60)
-    
-    # Load data
-    loader = CLPsychDataLoader(data_path, split=split)
-    df = loader.load()
-    
-    print(f"\nLoaded {len(df)} posts")
-    
-    # Create instruction examples
-    instruction_data = []
+    training_data = []
     
     for idx, row in df.iterrows():
-        example = create_presence_instruction(row['text'], row['evidence'])
-        
-        # Add metadata
-        example['timeline_id'] = row['timeline_id']
-        example['post_id'] = row['post_id']
-        example['post_index'] = row['post_index']
-        
-        instruction_data.append(example)
+        training_data.append({
+            'timeline_id': row['timeline_id'],
+            'post_id': row['post_id'],
+            'instruction': row['instruction'],
+            'input': row['input'],
+            'output': row['output']
+        })
     
-    print(f"Created {len(instruction_data)} instruction examples")
-    
-    # Save
-    output_file = f'{split}_presence_instructions.json'
-    with open(output_file, 'w') as f:
-        json.dump(instruction_data, f, indent=2)
-    
-    print(f"✅ Saved to {output_file}")
-    
-    return instruction_data
+    return training_data
+
+# Convert to training format
+# train_data = df_to_training_format(train_df)
+# val_data = df_to_training_format(val_df)
+
+# print(f"\nTrain data: {len(train_data)} examples")
+# print(f"Val data: {len(val_data)} examples")
 
 
+
+def create_instruction_dataset(df):
+    """
+    Convert DataFrame to instruction-tuning format
+    Maintains order from sorted DataFrame
+    """
+    
+    instruction = """Analyze the social media post using the MIND framework. Identify ABCD self-state elements and output ONLY a JSON object.
+
+Dimensions: A (Affect), B-S (Behavior-Self), B-O (Behavior-Others), C-S (Cognition-Self), C-O (Cognition-Others), D (Desire).
+Each dimension may appear in adaptive-state, maladaptive-state, both, or neither.
+Include only dimensions detected. Evidence must be an exact quote (3-15 words).
+Presence score is an integer 1-5 based on intensity. Do not output NULL.
+
+Subelements:
+""" + get_taxonomy_string() + """
+
+Output ONLY valid JSON, no explanation:
+{
+  "timeline_id": "<actual timeline_id>",
+  "post_id": "<actual post_id>",
+  "adaptive-state": {
+    "A": {"subelement": "(5) Content, happy, joy, hopeful", "highlighted_evidence": "exact quote"},
+    "B-S": {"subelement": "(1) Self care and improvement", "highlighted_evidence": "exact quote"},
+    "Presence": 3
+  },
+  "maladaptive-state": {
+    "A": {"subelement": "(2) Anxious/ fearful/ tense", "highlighted_evidence": "exact quote"},
+    "C-S": {"subelement": "(2) Self criticism", "highlighted_evidence": "exact quote"},
+    "D": {"subelement": "(2) Expectation that relatedness needs will not be met", "highlighted_evidence": "exact quote"},
+    "Presence": 4
+  }
+}"""
+
+    dataset = []
+    
+    # Iterate through sorted DataFrame
+    for idx, row in df.iterrows():
+        # Skip posts without evidence
+        if not row.get('evidence'):
+            continue
+        
+        # Check if there's actual content
+        has_content = False
+        evidence = row['evidence']
+        
+        for state in ['adaptive-state', 'maladaptive-state']:
+            if state in evidence:
+                for dim, data in evidence[state].items():
+                    if dim != 'Presence' and isinstance(data, dict):
+                        if data.get('Category'):
+                            has_content = True
+                            break
+        
+        if not has_content:
+            continue
+        
+        dataset.append({
+            'timeline_id': row['timeline_id'],
+            'post_index': row['post_index'],
+            'post_id': row['post_id'],
+            'instruction': instruction,
+            'input': f"Post: {row['text']}",
+            'output': format_evidence_as_json(row['evidence'], timeline_id=row['timeline_id'], post_id=row['post_id'])
+        })
+    
+    # Convert back to DataFrame to maintain order
+    dataset_df = pd.DataFrame(dataset)
+    dataset_df = dataset_df.sort_values(['timeline_id', 'post_index']).reset_index(drop=True)
+    
+    print(f"\nCreated {len(dataset_df)} instruction examples")
+    print(f"From {dataset_df['timeline_id'].nunique()} timelines")
+    
+    return dataset_df
+
+
+
+
+class ABCDInstructionDataset(Dataset):
+    """
+    Dataset for ABCD instruction tuning
+    Preserves order from input list
+    """
+    
+    def __init__(self, data, tokenizer, max_length=2048):
+        """
+        Args:
+            data: List of dicts with 'instruction', 'input', 'output'
+                  (already in correct order)
+            tokenizer: Hugging Face tokenizer
+            max_length: Maximum sequence length
+        """
+        self.data = data
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+    
+    def __len__(self):
+        return len(self.data)
+    
+    def __getitem__(self, idx):
+        """Get item at index (maintains order)"""
+        item = self.data[idx]
+        
+        # Format as Llama-3 chat format
+        messages = [
+            {"role": "system", "content": item['instruction']},
+            {"role": "user", "content": item['input']},
+            {"role": "assistant", "content": item['output']}
+        ]
+        
+        # Apply chat template
+        text = self.tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=False
+        )
+        
+        # Tokenize
+        encodings = self.tokenizer(
+            text,
+            truncation=True,
+            max_length=self.max_length,
+            padding="max_length",
+            return_tensors="pt"
+        )
+        
+        return {
+            'input_ids': encodings['input_ids'].squeeze(),
+            'attention_mask': encodings['attention_mask'].squeeze(),
+            'labels': encodings['input_ids'].squeeze()
+        }
+
+# Note: We'll create the actual dataset after loading the model
+# to avoid loading tokenizer twice
+
+
+if __name__=='__main__':
+    train_loader = CLPsychDataLoader('..tasks12/', split='train')
+    val_loader = CLPsychDataLoader('..tasks12/', split='val')
+    train_df = train_loader.load()
+    print("Training Set Stats")
+    val_df = val_loader.load()
+    train_loader.verify_order()
+    train_loader.get_stats()
+    print("\n" + "=" * 60)
+    print("Validation Set Stats")
+    val_loader.verify_order()
+    val_loader.get_stats()
