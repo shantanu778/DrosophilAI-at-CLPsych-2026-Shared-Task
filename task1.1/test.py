@@ -37,7 +37,7 @@ def predict_abcd(instruction, post_text, model, tokenizer):
             temperature=0.1,
             top_p=0.9,
             do_sample=True,
-            use_cache=False,
+            use_cache=True,
             pad_token_id=tokenizer.eos_token_id,
             eos_token_id=tokenizer.eos_token_id,
         )
@@ -48,15 +48,15 @@ def predict_abcd(instruction, post_text, model, tokenizer):
         
         return response
 
-    def parse_json_output(text):
-        """Extract JSON from model output"""
-        json_match = re.search(r'\{.*\}', text, re.DOTALL)
-        if json_match:
-            try:
-                return json.loads(json_match.group())
-            except:
-                return None
-        return None
+def parse_json_output(text):
+    """Extract JSON from model output"""
+    json_match = re.search(r'\{.*\}', text, re.DOTALL)
+    if json_match:
+        try:
+            return json.loads(json_match.group())
+        except:
+            return None
+    return None
 
 def df_to_training_format(df):
     """
@@ -83,30 +83,29 @@ def create_instruction_dataset(df):
     
     instruction = """Analyze the social media post using the MIND framework. Identify ABCD self-state elements and output ONLY a JSON object.
 
-Dimensions: A (Affect), B-S (Behavior-Self), B-O (Behavior-Others), C-S (Cognition-Self), C-O (Cognition-Others), D (Desire).
-Each dimension may appear in adaptive-state, maladaptive-state, both, or neither.
-Include only dimensions detected. Evidence must be an exact quote (3-15 words).
-Presence score is an integer 1-5 based on intensity. Do not output NULL.
+                Dimensions: A (Affect), B-S (Behavior-Self), B-O (Behavior-Others), C-S (Cognition-Self), C-O (Cognition-Others), D (Desire).
+                Rules:
+                Each dimension may appear in adaptive-state, maladaptive-state, both, or neither.
+                Include only dimensions detected. Evidence must be an exact quote (3-15 words).
+                Presence score is an integer 1-5 based on intensity. Do not output NULL or None.
 
-Subelements:
-""" + get_taxonomy_string() + """
+                Subelements:
+                """ + get_taxonomy_string() + """
 
-Output ONLY valid JSON, no explanation:
-{
-  "timeline_id": "<actual timeline_id>",
-  "post_id": "<actual post_id>",
-  "adaptive-state": {
-    "A": {"subelement": "(5) Content, happy, joy, hopeful", "highlighted_evidence": "exact quote"},
-    "B-S": {"subelement": "(1) Self care and improvement", "highlighted_evidence": "exact quote"},
-    "Presence": 3
-  },
-  "maladaptive-state": {
-    "A": {"subelement": "(2) Anxious/ fearful/ tense", "highlighted_evidence": "exact quote"},
-    "C-S": {"subelement": "(2) Self criticism", "highlighted_evidence": "exact quote"},
-    "D": {"subelement": "(2) Expectation that relatedness needs will not be met", "highlighted_evidence": "exact quote"},
-    "Presence": 4
-  }
-}"""
+                Output ONLY valid JSON, no explanation: For example, if a post has evidence of contentment (A: Content, happy, joy, hopeful) and self care (B-S: Self care and improvement) in the adaptive state, and anxiety (A: Anxious/ fearful/ tense), self criticism (C-S: Self criticism), and expectation of unmet relatedness needs (D: Expectation that relatedness needs will not be met) in the maladaptive state, the output should be:
+                {
+                    "adaptive-state": {
+                        "A": {"subelement": "(5) Content, happy, joy, hopeful", "highlighted_evidence": "exact quote"},
+                        "B-S": {"subelement": "(1) Self care and improvement", "highlighted_evidence": "exact quote"},
+                        "Presence": 3
+                    },
+                    "maladaptive-state": {
+                        "A": {"subelement": "(2) Anxious/ fearful/ tense", "highlighted_evidence": "exact quote"},
+                        "C-S": {"subelement": "(2) Self criticism", "highlighted_evidence": "exact quote"},
+                        "D": {"subelement": "(2) Expectation that relatedness needs will not be met", "highlighted_evidence": "exact quote"},
+                        "Presence": 4
+                    }
+                }"""
 
     dataset = []
     
@@ -301,3 +300,8 @@ if __name__ == "__main__":
             })
 
     print(f"\n✅ Generated {len(predictions)} predictions\n")
+
+    # Save predictions
+    with open('test_predictions.json', 'w') as f:
+        json.dump(predictions, f, indent=2)
+    print("✅ Predictions saved to test_predictions.json\n")

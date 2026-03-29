@@ -236,10 +236,10 @@ class CLPsychDataLoader:
 def format_evidence_as_json(evidence, timeline_id=None, post_id=None):
     """Convert evidence dict to clean JSON string"""
     output = {}
-    if timeline_id:
-        output['timeline_id'] = timeline_id
-    if post_id:
-        output['post_id'] = post_id
+    # if timeline_id:
+    #     output['timeline_id'] = timeline_id
+    # if post_id:
+    #     output['post_id'] = post_id
     output['adaptive-state'] = {}
     output['maladaptive-state'] = {}
     
@@ -307,14 +307,15 @@ def create_instruction_dataset(df):
     instruction = """Analyze the social media post using the MIND framework. Identify ABCD self-state elements and output ONLY a JSON object.
 
                 Dimensions: A (Affect), B-S (Behavior-Self), B-O (Behavior-Others), C-S (Cognition-Self), C-O (Cognition-Others), D (Desire).
+                Rules:
                 Each dimension may appear in adaptive-state, maladaptive-state, both, or neither.
                 Include only dimensions detected. Evidence must be an exact quote (3-15 words).
-                Presence score is an integer 1-5 based on intensity. Do not output NULL.
+                Presence score is an integer 1-5 based on intensity. Do not output NULL or None.
 
                 Subelements:
                 """ + get_taxonomy_string() + """
 
-                Output ONLY valid JSON, no explanation:
+                Output ONLY valid JSON, no explanation: For example, if a post has evidence of contentment (A: Content, happy, joy, hopeful) and self care (B-S: Self care and improvement) in the adaptive state, and anxiety (A: Anxious/ fearful/ tense), self criticism (C-S: Self criticism), and expectation of unmet relatedness needs (D: Expectation that relatedness needs will not be met) in the maladaptive state, the output should be:
                 {
                     "adaptive-state": {
                         "A": {"subelement": "(5) Content, happy, joy, hopeful", "highlighted_evidence": "exact quote"},
@@ -327,7 +328,8 @@ def create_instruction_dataset(df):
                         "D": {"subelement": "(2) Expectation that relatedness needs will not be met", "highlighted_evidence": "exact quote"},
                         "Presence": 4
                     }
-                }"""
+                }
+                """
 
     dataset = []
     

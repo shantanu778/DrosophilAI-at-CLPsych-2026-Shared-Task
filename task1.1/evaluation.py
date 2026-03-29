@@ -63,7 +63,7 @@ if __name__ == "__main__":
 
     val_df = create_instruction_dataset(val_df)
 
-    val_data = df_to_training_format(val_df[:10])
+    val_data = df_to_training_format(val_df)
 
     # Create instruction dataset
     # instruction_df = create_instruction_dataset(df)
@@ -173,6 +173,8 @@ if __name__ == "__main__":
             ground_truth = parse_json_output(item['output'])
             
             predictions.append({
+                'timeline_id': item['timeline_id'],
+                'post_id': item['post_id'],
                 'prediction': prediction,
                 'ground_truth': ground_truth
             })
