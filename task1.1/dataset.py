@@ -316,8 +316,6 @@ def create_instruction_dataset(df):
 
                 Output ONLY valid JSON, no explanation:
                 {
-                    "timeline_id": "<actual timeline_id>",
-                    "post_id": "<actual post_id>",
                     "adaptive-state": {
                         "A": {"subelement": "(5) Content, happy, joy, hopeful", "highlighted_evidence": "exact quote"},
                         "B-S": {"subelement": "(1) Self care and improvement", "highlighted_evidence": "exact quote"},
