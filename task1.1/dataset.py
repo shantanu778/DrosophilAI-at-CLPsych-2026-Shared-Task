@@ -252,7 +252,7 @@ def format_evidence_as_json(evidence, timeline_id=None, post_id=None):
             if dim != 'Presence' and isinstance(data, dict):
                 if 'Category' in data and data['Category']:
                     output['adaptive-state'][dim] = {
-                        'Category': data['Category'],
+                        'subelement': data['Category'],
                         'highlighted_evidence': data.get('highlighted_evidence', '')
                     }
     
