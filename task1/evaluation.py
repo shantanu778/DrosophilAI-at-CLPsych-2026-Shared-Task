@@ -44,7 +44,7 @@ if __name__ == "__main__":
     parser.add_argument("--model_name", help="Exact location of Pretrained Models",
                     type=str)
     args = parser.parse_args()
-    MODELS = args.model_name
+    MODEL = args.model_name
 
     # ========== STEP 1: Load Data ==========
     print("=" * 60)
@@ -83,7 +83,7 @@ if __name__ == "__main__":
     print("="*60)
 
     model, tokenizer = FastLanguageModel.from_pretrained(
-        model_name=MODELS,  # Your checkpoint directory
+        model_name=MODEL,  # Your checkpoint directory
         max_seq_length=2048,
         dtype=None,
         load_in_4bit=True,
@@ -167,7 +167,7 @@ if __name__ == "__main__":
                 model,
                 tokenizer
             )
-            print(response)
+            # print(response)
             # Parse
             prediction = parse_json_output(response)
             ground_truth = parse_json_output(item['output'])
@@ -190,7 +190,7 @@ if __name__ == "__main__":
     print(f"\n✅ Generated {len(predictions)} predictions\n")
 
     # Save predictions
-    with open('val_predictions.json', 'w') as f:
+    with open(f'val_predictions_{MODEL}.json', 'w') as f:
         json.dump(predictions, f, indent=2)
     print("✅ Predictions saved to val_predictions.json\n")
 
@@ -298,7 +298,7 @@ if __name__ == "__main__":
         'exact_match': float(exact_match)
     }
 
-    with open('evaluation_results.json', 'w') as f:
+    with open(f'evaluation_results_{MODEL}.json', 'w') as f:
         json.dump(results, f, indent=2)
 
     print("\n✅ Results saved to evaluation_results.json")

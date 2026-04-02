@@ -30,8 +30,9 @@ def predict_abcd(instruction, post_text, model, tokenizer):
         # print(prompt)
         
         inputs = tokenizer([prompt], return_tensors="pt").to(model.device)
+        # print(inputs)
         
-        outputs = model.generate(
+        outputs = model(
             **inputs,
             max_new_tokens=512,
             temperature=0.1,
@@ -41,6 +42,7 @@ def predict_abcd(instruction, post_text, model, tokenizer):
             pad_token_id=tokenizer.eos_token_id,
             eos_token_id=tokenizer.eos_token_id,
         )
+        # print(outputs.logits.shape)
         response = tokenizer.decode(
             outputs[0][inputs['input_ids'].shape[1]:],
             skip_special_tokens=True
@@ -233,7 +235,7 @@ if __name__ == "__main__":
 
     test_df = create_instruction_dataset(test_df)
 
-    test_data = df_to_training_format(test_df[:10])
+    test_data = df_to_training_format(test_df)
 
     # ========== 1. Load Trained Model ==========
     print("="*60)
@@ -302,6 +304,6 @@ if __name__ == "__main__":
     print(f"\n✅ Generated {len(predictions)} predictions\n")
 
     # Save predictions
-    with open('test_predictions.json', 'w') as f:
+    with open(f'test_predictions_{MODELS}.json', 'w') as f:
         json.dump(predictions, f, indent=2)
-    print("✅ Predictions saved to test_predictions.json\n")
+    print(f"✅ Predictions saved to test_predictions_{MODELS}.json\n")

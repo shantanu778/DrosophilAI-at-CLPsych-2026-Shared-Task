@@ -69,11 +69,13 @@ if __name__=='__main__':
     LR = args.lr
 
     if args.model_name =='qwen':
-        model_name = "unsloth/Qwen3.5-9B"
+        model_name = "unsloth/Qwen3.5-9B-GGUF"
     elif args.model_name=='phi':
-        model_name="unsloth/phi-4"
+        model_name="unsloth/phi-4-bnb-4bit"
     elif args.model_name=='llama':
         model_name="unsloth/llama-3-8b-Instruct-bnb-4bit"
+    elif args.model_name=='deepseek':
+        model_name="unsloth/DeepSeek-R1-0528-Qwen3-8B-unsloth-bnb-4bit"
     else:
         assert 'This model in not available yet. we choose llama intead'
         model_name="unsloth/llama-3-8b-Instruct-bnb-4bit"
