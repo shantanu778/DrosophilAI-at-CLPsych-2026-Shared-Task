@@ -122,7 +122,7 @@ if __name__ == "__main__":
             add_generation_prompt=True,
             
         )
-        # print(prompt)
+        print(prompt)
         
         inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
         
@@ -137,10 +137,12 @@ if __name__ == "__main__":
                 pad_token_id=tokenizer.eos_token_id,
                 eos_token_id=tokenizer.eos_token_id,
             )
+        
         response = tokenizer.decode(
             outputs[0][inputs['input_ids'].shape[1]:],
             skip_special_tokens=True
         )
+        print(f"Model response:\n{response}\n")
         
         return response
 

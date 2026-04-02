@@ -2,56 +2,71 @@ import json
 import warnings
 warnings.filterwarnings('ignore')
 import argparse
-import torch
 from unsloth import FastLanguageModel
 from tqdm import tqdm
 import re
-import numpy as np
-from sklearn.metrics import precision_recall_fscore_support, classification_report
+import torch
 from dataset import get_taxonomy_string
 import pandas as pd
 import os
 from glob import glob
+from datasets import Dataset
 
+
+def formatting_prompts_func(examples):
+    """Format examples with Llama-3 chat template"""
+    instructions = examples["instruction"]
+    inputs = examples["input"]
+    
+    texts = []
+    for instruction, input_text in zip(instructions, inputs):
+        # Llama-3 chat format
+        text = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+
+        {instruction}<|eot_id|><|start_header_id|>user<|end_header_id|>
+
+        {input_text}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+        """
+        texts.append(text)
+        
+    return {"text": texts}
 
 def predict_abcd(instruction, post_text, model, tokenizer):
-        """Generate ABCD prediction - FIXED version"""
-        
-        messages = [
-            {"role": "system", "content": instruction},
-            {"role": "user", "content": post_text}
-        ]
-        
-        prompt = tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
-            add_generation_prompt=True
-        )
-        # print(prompt)
-        
-        inputs = tokenizer([prompt], return_tensors="pt").to(model.device)
-        # print(inputs)
-        
-        outputs = model(
+    """Generate ABCD prediction - FIXED version"""
+    
+    messages = [
+        {"role": "system", "content": instruction},
+        {"role": "user", "content": post_text}
+    ]
+    
+    prompt = tokenizer.apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=True
+    )
+    
+    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+
+    with torch.no_grad():
+        outputs = model.generate(
             **inputs,
             max_new_tokens=512,
             temperature=0.1,
             top_p=0.9,
             do_sample=True,
-            use_cache=True,
-            pad_token_id=tokenizer.eos_token_id,
-            eos_token_id=tokenizer.eos_token_id,
+            use_cache=True
         )
-        # print(outputs.logits.shape)
-        response = tokenizer.decode(
-            outputs[0][inputs['input_ids'].shape[1]:],
-            skip_special_tokens=True
-        )
-        
-        return response
+    # print(outputs.logits.shape)
+    response = tokenizer.decode(
+        outputs[0][inputs['input_ids'].shape[1]:],
+        skip_special_tokens=True
+    )
+    
+    return response
 
 def parse_json_output(text):
     """Extract JSON from model output"""
+    # print(f"Raw model output:\n{text}\n")
     json_match = re.search(r'\{.*\}', text, re.DOTALL)
     if json_match:
         try:
@@ -107,7 +122,8 @@ def create_instruction_dataset(df):
                         "D": {"subelement": "(2) Expectation that relatedness needs will not be met", "highlighted_evidence": "exact quote"},
                         "Presence": 4
                     }
-                }"""
+                }
+                """
 
     dataset = []
     
@@ -217,7 +233,7 @@ if __name__ == "__main__":
     parser.add_argument("--model_name", help="Exact location of Pretrained Models",
                     type=str)
     args = parser.parse_args()
-    MODELS = args.model_name
+    MODEL = args.model_name
 
     # ========== STEP 1: Load Data ==========
     print("=" * 60)
@@ -243,7 +259,7 @@ if __name__ == "__main__":
     print("="*60)
 
     model, tokenizer = FastLanguageModel.from_pretrained(
-        model_name=MODELS,  # Your checkpoint directory
+        model_name=MODEL,  # Your checkpoint directory
         max_seq_length=2048,
         dtype=None,
         load_in_4bit=True,
@@ -268,6 +284,8 @@ if __name__ == "__main__":
     print("Generating predictions...")
     print("="*60)
 
+    # test_dataset = Dataset.from_list(test_data)
+    # test_dataset = test_dataset.map(formatting_prompts_func, batched=True)
     
 
     # Generate predictions
@@ -283,7 +301,6 @@ if __name__ == "__main__":
                 model,
                 tokenizer
             )
-            print(response)
             # Parse
             prediction = parse_json_output(response)
             
@@ -304,6 +321,6 @@ if __name__ == "__main__":
     print(f"\n✅ Generated {len(predictions)} predictions\n")
 
     # Save predictions
-    with open(f'test_predictions_{MODELS}.json', 'w') as f:
+    with open(f'test_predictions_{MODEL}.json', 'w') as f:
         json.dump(predictions, f, indent=2)
-    print(f"✅ Predictions saved to test_predictions_{MODELS}.json\n")
+    print(f"✅ Predictions saved to test_predictions_{MODEL}.json\n")

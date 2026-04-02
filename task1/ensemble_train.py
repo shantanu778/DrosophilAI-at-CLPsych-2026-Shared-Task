@@ -75,17 +75,17 @@ def parse_json_to_features(prediction, flag=True):
 
 
 # Load predictions from Phi, QWEN, Llama
-with open('val_predictions.json') as f:
+with open('val_predictions_llama-final.json') as f:
     phi_predictions = json.load(f)
 
-with open('val_predictions.json') as f:
+with open('val_predictions_qwen-final.json') as f:
     qwen_predictions = json.load(f)
 
-with open('val_predictions.json') as f:
+with open('val_predictions_phi-final.json') as f:
     llama_predictions = json.load(f)
 
 # Load ground truth
-with open('val_predictions.json') as f:
+with open('val_predictions_phi-final.json') as f:
     ground_truth = json.load(f)
 
 print(f"Loaded {len(phi_predictions)} predictions from each model")
@@ -521,9 +521,11 @@ def binary_to_json(abcd_vector, presence_vector):
 
 # Example usage
 ensemble_pred = predict_ensemble(
-    phi_predictions[0],
-    qwen_predictions[0],
-    llama_predictions[0]
+    phi_predictions,
+    qwen_predictions,
+    llama_predictions
 )
 
-print(json.dumps(ensemble_pred, indent=2))
+with open(f'ensemble_train_predictions.json', 'w') as f:
+        json.dump(ensemble_pred, f, indent=2)
+
