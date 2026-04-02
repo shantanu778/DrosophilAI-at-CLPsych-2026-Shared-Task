@@ -30,6 +30,8 @@ llama_70b.sh
 phi-final/
 phi/
 qwen/
+deepseek/
+CLPsych-2026/
 
 # Distribution / packaging
 .Python
