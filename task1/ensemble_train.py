@@ -1,301 +1,529 @@
 import json
 import numpy as np
-from collections import Counter
-import re
-from sklearn.metrics import precision_recall_fscore_support, classification_report
+import torch
+import torch.nn as nn
+from torch.utils.data import Dataset, DataLoader
 
-# Load all predictions
-with open('val_predictions_phi-final.json') as f:
-    phi_preds = json.load(f)
+# ========== Parse JSON to Feature Vectors ==========
+def parse_json_to_features(prediction, flag=True):
+    """
+    Convert JSON prediction to feature vector
     
-with open('val_predictions_qwen-final.json') as f:
-    qwen_preds = json.load(f)
-    
-with open('val_predictions_llama-final.json') as f:
-    llama_preds = json.load(f)
-
-def all_predictions(phi_pred, qwen_pred, llama_pred, state, dim):
-    """Get all predictions for a given state and dimension"""
-    categories = []
-    
-    if phi_pred and state in phi_pred and dim in phi_pred[state]:
-        categories.append(phi_pred[state][dim]['subelement'])
-    
-    if qwen_pred and state in qwen_pred and dim in qwen_pred[state]:
-        categories.append(qwen_pred[state][dim]['subelement'])
-    
-    if llama_pred and state in llama_pred and dim in llama_pred[state]:
-        categories.append(llama_pred[state][dim]['subelement'])
-
-    # print(f"All predictions for {state} {dim}: {categories}")
-    set_categories = set(categories)
-    if len(set_categories) > 1:
-        if phi_pred and state in phi_pred and dim in phi_pred[state]:
-            return phi_pred[state][dim]['subelement']
-        elif qwen_pred and state in qwen_pred and dim in qwen_pred[state]:
-            return qwen_pred[state][dim]['subelement']
-        elif llama_pred and state in llama_pred and dim in llama_pred[state]:
-            return llama_pred[state][dim]['subelement']
-
-    return categories[0] if set_categories else 'unknown'
-
-def evidence_to_binary(evidence_dict):
-    """Convert evidence dict to binary vector"""
-    vector = np.zeros(n_categories)
-    
-    if not evidence_dict:
-        return vector
-    
-    # Adaptive state
-    if 'adaptive-state' in evidence_dict:
-        for dim, data in evidence_dict['adaptive-state'].items():
-            if dim in dimensions and data:
-                idx = categories.index(f"{dim}_adaptive")
-                vector[idx] = 1
-    
-    # Maladaptive state
-    if 'maladaptive-state' in evidence_dict:
-        for dim, data in evidence_dict['maladaptive-state'].items():
-            if dim in dimensions and data:
-                idx = categories.index(f"{dim}_maladaptive")
-                vector[idx] = 1
-    
-    return vector
-
-
-def get_best_category(phi_pred, qwen_pred, llama_pred, state, dim):
-    """Get category from the best model or most common"""
-    categories = []
-    
-    if phi_pred and state in phi_pred and dim in phi_pred[state]:
-        categories.append(phi_pred[state][dim]['subelement'])
-    
-    if qwen_pred and state in qwen_pred and dim in qwen_pred[state]:
-        categories.append(qwen_pred[state][dim]['subelement'])
-    
-    if llama_pred and state in llama_pred and dim in llama_pred[state]:
-        categories.append(llama_pred[state][dim]['subelement'])
-    
-    if categories:
-        # Return most common category
-        return Counter(categories).most_common(1)[0][0]
-
-# ========== Task 1.1: ABCD Classification (Majority Voting) ==========
-def majority_vote_abcd(phi_pred, qwen_pred, llama_pred):
-    """Majority voting for ABCD elements"""
-
-    
-    
-    ensemble_pred = {
-        'adaptive-state': {},
-        'maladaptive-state': {}
-    }
+    Returns:
+        abcd_vector: [12] binary vector (6 dims × 2 polarities)
+        presence_vector: [2] continuous values (adaptive, maladaptive presence scores)
+    """
+    if flag:
+        prediction = prediction['prediction']
+    else:
+        prediction = prediction['ground_truth']
     
     dimensions = ['A', 'B-S', 'B-O', 'C-S', 'C-O', 'D']
     
-    for state in ['adaptive-state', 'maladaptive-state']:
-        for dim in dimensions:
-            # Count votes
-            # votes = []
-            
-            # if phi_pred and state in phi_pred and dim in phi_pred[state]:
-            #     votes.append('present')
-            # else:
-            #     votes.append('absent')
-            
-            # if qwen_pred and state in qwen_pred and dim in qwen_pred[state]:
-            #     votes.append('present')
-            # else:
-            #     votes.append('absent')
-            
-            # if llama_pred and state in llama_pred and dim in llama_pred[state]:
-            #     votes.append('present')
-            # else:
-            #     votes.append('absent')
-            
-            # # Majority wins (at least 2 out of 3)
-            # vote_count = Counter(votes)
-            # if vote_count['present'] >= 2:
-            # print(f"{state} {dim} classified as present by majority vote.")
-                # Take category from best model or most common
-            ensemble_pred[state][dim] = {
-                'subelement': all_predictions(phi_pred, qwen_pred, llama_pred, state, dim)
-            }
-            # else:
-            #     ensemble_pred[state][dim] = {
-            #         'subelement': all_predictions(phi_pred, qwen_pred, llama_pred, state, dim)
-            #     }
-                # print(f"Warning: {state} {dim} classified as absent by majority vote.")
+    # Task 1.1: ABCD binary vector (12 dimensions)
+    abcd_vector = np.zeros(12)
+    # Adaptive state (even indices: 0, 2, 4, 6, 8, 10)
+    if prediction and 'adaptive-state' in prediction and prediction['adaptive-state'] is not None:
+        for i, dim in enumerate(dimensions):
+            if dim in prediction['adaptive-state'] and dim != 'Presence':
+                # print(dim,  prediction['adaptive-state'])
+                abcd_vector[i*2] = 1
     
-    return ensemble_pred
-
-# ========== Task 1.2: Presence Rating (Averaging) ==========
-def average_presence_scores(phi_preds, qwen_preds, llama_preds):
-    """Average presence scores from 3 models"""
-    if not phi_preds:
-        # print("Warning: Missing adaptive presence scores in phi model.")
-        phi_preds = {'adaptive-state': {'Presence': 0}, 'maladaptive-state': {'Presence': 0}}
-    if not qwen_preds:
-        # print("Warning: Missing adaptive presence scores in qwen model.")
-        qwen_preds = {'adaptive-state': {'Presence': 0}, 'maladaptive-state': {'Presence': 0}}
-    if not llama_preds:
-        # print("Warning: Missing adaptive presence scores in llama model.")
-        llama_preds = {'adaptive-state': {'Presence': 0}, 'maladaptive-state': {'Presence': 0}}
+    # Maladaptive state (odd indices: 1, 3, 5, 7, 9, 11)
+    if prediction and 'maladaptive-state' in prediction and prediction['maladaptive-state'] is not None:
+        for i, dim in enumerate(dimensions):
+            if dim in prediction['maladaptive-state'] and dim != 'Presence':
+                abcd_vector[i*2 + 1] = 1
     
-
-    # Simple average
-
-    avg_adaptive = (phi_preds['adaptive-state']['Presence'] + qwen_preds['adaptive-state']['Presence'] + llama_preds['adaptive-state']['Presence']) / 3
-    avg_maladaptive = (phi_preds['maladaptive-state']['Presence'] + qwen_preds['maladaptive-state']['Presence'] + llama_preds['maladaptive-state']['Presence']) / 3
+    # print(abcd_vector)
+    # Task 1.2: Presence scores (2 values)
+    presence_vector = np.zeros(2)
     
-    # Round to nearest integer (1-5)
-    avg_adaptive = int(round(avg_adaptive))
-    avg_maladaptive = int(round(avg_maladaptive))
-    return {
-        'adaptive-state': avg_adaptive,
-        'maladaptive-state': avg_maladaptive
-    }
+    if prediction and 'adaptive-state' in prediction and 'Presence' in prediction['adaptive-state']:
+        presence_vector[0] = prediction['adaptive-state']['Presence']
+    else:
+        presence_vector[0] = 1  # Default: not present
+    
+    if prediction and 'maladaptive-state' in prediction and 'Presence' in prediction['maladaptive-state']:
+        presence_vector[1] = prediction['maladaptive-state']['Presence']
+    else:
+        presence_vector[1] = 1  # Default: not present
+    
+    return abcd_vector, presence_vector
 
 
-# Apply ensemble
-dimensions = ['A', 'B-S', 'B-O', 'C-S', 'C-O', 'D']
-ensemble_predictions = []
-for i in range(len(phi_preds)):
-    # print(f"Processing sample {i}, {phi_preds[i]}, {qwen_preds[i]}, {llama_preds[i]}...")
-    # print(phi_preds[i]['timeline_id'], phi_preds[i]['post_id'], "Processing sample", i)
-    prediction = majority_vote_abcd(
-            phi_preds[i]['prediction'],
-            qwen_preds[i]['prediction'],
-            llama_preds[i]['prediction']
+# ========== Example Usage ==========
+# example_pred = {
+#     "timeline_id": "91b6a42835",
+#     "post_id": "28641e5b6d",
+#     "adaptive-state": {
+#         "Presence": 5,
+#         "B-S": {"subelement": 1},
+#         "B-O": {"subelement": 1},
+#         "C-S": {"subelement": 1},
+#         "D": {"subelement": 3}
+#     },
+#     "maladaptive-state": {
+#         "Presence": 2,
+#         "C-S": {"subelement": 2}
+#     }
+# }
+
+# abcd, presence = parse_json_to_features(example_pred)
+# print(f"ABCD vector: {abcd}")  # [0, 0, 1, 0, 1, 0, 1, 1, 0, 0, 1, 0]
+# print(f"Presence vector: {presence}")  # [5, 2]
+
+
+# Load predictions from Phi, QWEN, Llama
+with open('val_predictions.json') as f:
+    phi_predictions = json.load(f)
+
+with open('val_predictions.json') as f:
+    qwen_predictions = json.load(f)
+
+with open('val_predictions.json') as f:
+    llama_predictions = json.load(f)
+
+# Load ground truth
+with open('val_predictions.json') as f:
+    ground_truth = json.load(f)
+
+print(f"Loaded {len(phi_predictions)} predictions from each model")
+
+# ========== Convert All Predictions to Feature Vectors ==========
+phi_abcd = []
+phi_presence = []
+
+qwen_abcd = []
+qwen_presence = []
+
+llama_abcd = []
+llama_presence = []
+
+gt_abcd = []
+gt_presence = []
+
+for i in range(len(phi_predictions)):
+    # Phi
+    abcd, pres = parse_json_to_features(phi_predictions[i])
+    phi_abcd.append(abcd)
+    phi_presence.append(pres)
+    
+    # QWEN
+    abcd, pres = parse_json_to_features(qwen_predictions[i])
+    qwen_abcd.append(abcd)
+    qwen_presence.append(pres)
+    
+    # Llama
+    abcd, pres = parse_json_to_features(llama_predictions[i])
+    llama_abcd.append(abcd)
+    llama_presence.append(pres)
+    
+    # Ground Truth
+    abcd, pres = parse_json_to_features(ground_truth[i], flag=False)
+    gt_abcd.append(abcd)
+    gt_presence.append(pres)
+
+# Convert to numpy
+phi_abcd = np.array(phi_abcd)  # [N, 12]
+phi_presence = np.array(phi_presence)  # [N, 2]
+
+qwen_abcd = np.array(qwen_abcd)
+qwen_presence = np.array(qwen_presence)
+
+llama_abcd = np.array(llama_abcd)
+llama_presence = np.array(llama_presence)
+
+gt_abcd = np.array(gt_abcd)
+gt_presence = np.array(gt_presence)
+
+print(f"\nFeature shapes:")
+print(f"ABCD: {phi_abcd.shape}")
+print(f"Presence: {phi_presence.shape}")
+
+
+class EnsembleDataset(Dataset):
+    """
+    Dataset combining predictions from Phi, QWEN, Llama
+    """
+    
+    def __init__(self, phi_abcd, phi_pres, qwen_abcd, qwen_pres, 
+                 llama_abcd, llama_pres, gt_abcd, gt_pres):
+        
+        self.phi_abcd = torch.FloatTensor(phi_abcd)
+        self.phi_pres = torch.FloatTensor(phi_pres)
+        
+        self.qwen_abcd = torch.FloatTensor(qwen_abcd)
+        self.qwen_pres = torch.FloatTensor(qwen_pres)
+        
+        self.llama_abcd = torch.FloatTensor(llama_abcd)
+        self.llama_pres = torch.FloatTensor(llama_pres)
+        
+        self.gt_abcd = torch.FloatTensor(gt_abcd)
+        self.gt_pres = torch.FloatTensor(gt_pres)
+    
+    def __len__(self):
+        return len(self.phi_abcd)
+    
+    def __getitem__(self, idx):
+        return {
+            # ABCD predictions from 3 models
+            'phi_abcd': self.phi_abcd[idx],
+            'qwen_abcd': self.qwen_abcd[idx],
+            'llama_abcd': self.llama_abcd[idx],
+            
+            # Presence predictions from 3 models
+            'phi_pres': self.phi_pres[idx],
+            'qwen_pres': self.qwen_pres[idx],
+            'llama_pres': self.llama_pres[idx],
+            
+            # Ground truth
+            'target_abcd': self.gt_abcd[idx],
+            'target_pres': self.gt_pres[idx]
+        }
+
+# Create dataset
+from sklearn.model_selection import train_test_split
+
+# Split indices
+indices = np.arange(len(phi_abcd))
+train_idx, val_idx = train_test_split(indices, test_size=0.2, random_state=42)
+
+# Create train/val datasets
+train_dataset = EnsembleDataset(
+    phi_abcd[train_idx], phi_presence[train_idx],
+    qwen_abcd[train_idx], qwen_presence[train_idx],
+    llama_abcd[train_idx], llama_presence[train_idx],
+    gt_abcd[train_idx], gt_presence[train_idx]
+)
+
+val_dataset = EnsembleDataset(
+    phi_abcd[val_idx], phi_presence[val_idx],
+    qwen_abcd[val_idx], qwen_presence[val_idx],
+    llama_abcd[val_idx], llama_presence[val_idx],
+    gt_abcd[val_idx], gt_presence[val_idx]
+)
+
+train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=16)
+
+print(f"\nTrain samples: {len(train_dataset)}")
+print(f"Val samples: {len(val_dataset)}")
+
+print(train_dataset[1])
+
+class JointMetaLearner(nn.Module):
+    """
+    Meta-learner that combines:
+    - Task 1.1: ABCD classification (12 binary outputs)
+    - Task 1.2: Presence rating (2 regression outputs)
+    """
+    
+    def __init__(self):
+        super().__init__()
+        
+        # ========== Shared Feature Extraction ==========
+        # Input: 3 models × (12 ABCD + 2 presence) = 42 features
+        self.shared_encoder = nn.Sequential(
+            nn.Linear(42, 128),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Dropout(0.3)
         )
-    presence_scores = average_presence_scores(
-            phi_preds[i]['prediction'],
-            qwen_preds[i]['prediction'],
-            llama_preds[i]['prediction']
+        
+        # ========== Task 1.1: ABCD Classification Head ==========
+        self.abcd_head = nn.Sequential(
+            nn.Linear(64, 32),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(32, 12),
+            nn.Sigmoid()  # Binary classification for 12 dimensions
+        )
+        
+        # ========== Task 1.2: Presence Rating Head ==========
+        self.presence_head = nn.Sequential(
+            nn.Linear(64, 16),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(16, 2)  # 2 outputs: adaptive, maladaptive
         )
     
-    prediction['adaptive-state']['Presence'] = presence_scores['adaptive-state']
-    prediction['maladaptive-state']['Presence'] = presence_scores['maladaptive-state']
-
-    for dim in dimensions:
-        if prediction['adaptive-state'][dim]['subelement'] == 'unknown':
-            prediction['adaptive-state'].pop(dim)
-        if prediction['maladaptive-state'][dim]['subelement'] == 'unknown':
-            prediction['maladaptive-state'].pop(dim)
-
+    def forward(self, phi_abcd, phi_pres, qwen_abcd, qwen_pres, llama_abcd, llama_pres):
+        """
+        Args:
+            phi_abcd: [batch, 12]
+            phi_pres: [batch, 2]
+            qwen_abcd: [batch, 12]
+            qwen_pres: [batch, 2]
+            llama_abcd: [batch, 12]
+            llama_pres: [batch, 2]
+        
+        Returns:
+            abcd_pred: [batch, 12] - binary predictions
+            pres_pred: [batch, 2] - presence scores (1-5)
+        """
+        
+        # Concatenate all features: [batch, 42]
+        combined = torch.cat([
+            phi_abcd, phi_pres,
+            qwen_abcd, qwen_pres,
+            llama_abcd, llama_pres
+        ], dim=1)
+        
+        # Shared encoding
+        shared_features = self.shared_encoder(combined)
+        
+        # Task-specific predictions
+        abcd_pred = self.abcd_head(shared_features)
+        
+        # Presence scores: constrain to [1, 5]
+        pres_raw = self.presence_head(shared_features)
+        pres_pred = torch.sigmoid(pres_raw) * 4 + 1  # Maps to [1, 5]
+        
+        return abcd_pred, pres_pred
     
-    d = {
-        'timeline_id': phi_preds[i]['timeline_id'],
-        'post_id': phi_preds[i]['post_id'],
-        'prediction': prediction
-    }
-    ensemble_predictions.append(d)
 
-# Save ensemble predictions
-with open('val_predictions_ensemble.json', 'w') as f:
-    json.dump(ensemble_predictions, f, indent=2)
+#!/usr/bin/env python3
+"""
+Train Joint Meta-Learner for Tasks 1.1 and 1.2
+"""
 
+import torch
+import torch.nn as nn
+from tqdm import tqdm
+from sklearn.metrics import f1_score, mean_absolute_error
+import numpy as np
 
-# Define all dimensions
-dimensions = ['A', 'B-S', 'B-O', 'C-S', 'C-O', 'D']
-categories = []
-for dim in dimensions:
-    categories.append(f"{dim}_adaptive")
-    categories.append(f"{dim}_maladaptive")
-
-n_categories = len(categories)
-
-
-
-# Convert all predictions and ground truths
-y_true = []
-y_pred = []
-
-valid_count = 0
-for idx, pred in enumerate(ensemble_predictions):
-    if pred['prediction'] and phi_preds[idx]['ground_truth']:
-        y_true.append(evidence_to_binary(phi_preds[idx]['ground_truth']))
-        y_pred.append(evidence_to_binary(pred['prediction']))
-        valid_count += 1
-
-y_true = np.array(y_true)
-y_pred = np.array(y_pred)
-
-print(f"Valid predictions: {valid_count}/{len(ensemble_predictions)}")
-print(f"Binary matrix shape: {y_true.shape}\n")
-
-# ========== 5. Calculate Metrics ==========
 print("="*60)
-print("EVALUATION RESULTS")
+print("Training Joint Ensemble Meta-Learner")
 print("="*60)
 
-# Overall metrics (micro-averaged)
-precision_micro, recall_micro, f1_micro, _ = precision_recall_fscore_support(
-    y_true, y_pred, average='micro', zero_division=0
-)
+# Initialize model
+model = JointMetaLearner()
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+model.to(device)
 
-print("\n--- Overall (Micro-Averaged) ---")
-print(f"Precision: {precision_micro:.4f}")
-print(f"Recall:    {recall_micro:.4f}")
-print(f"F1 Score:  {f1_micro:.4f}")
+print(f"\nDevice: {device}")
+print(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad):,}")
 
-# Macro-averaged (average across all dimensions)
-precision_macro, recall_macro, f1_macro, _ = precision_recall_fscore_support(
-    y_true, y_pred, average='macro', zero_division=0
-)
+# Optimizer
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-4)
 
-print("\n--- Macro-Averaged (All Dimensions) ---")
-print(f"Precision: {precision_macro:.4f}")
-print(f"Recall:    {recall_macro:.4f}")
-print(f"F1 Score:  {f1_macro:.4f}")
+# Loss functions
+abcd_criterion = nn.BCELoss()  # Binary cross-entropy for ABCD
+presence_criterion = nn.MSELoss()  # MSE for presence scores
 
-# Per-dimension metrics
-print("\n--- Per-Dimension Metrics ---")
-precision_per_cat, recall_per_cat, f1_per_cat, support = precision_recall_fscore_support(
-    y_true, y_pred, average=None, zero_division=0
-)
+# Loss weights
+abcd_weight = 0.6
+presence_weight = 0.4
 
-for i, cat in enumerate(categories):
-    if support[i] > 0:  # Only show categories that exist in ground truth
-        print(f"\n{cat}:")
-        print(f"  Precision: {precision_per_cat[i]:.4f}")
-        print(f"  Recall:    {recall_per_cat[i]:.4f}")
-        print(f"  F1:        {f1_per_cat[i]:.4f}")
-        print(f"  Support:   {int(support[i])}")
+# ========== Training Loop ==========
+num_epochs = 50
+best_val_loss = float('inf')
 
-# Exact match accuracy
-from sklearn.metrics import accuracy_score
-exact_match = accuracy_score(y_true, y_pred)
-print(f"\n--- Exact Match Accuracy ---")
-print(f"Accuracy: {exact_match:.4f}")
+for epoch in range(num_epochs):
+    # ===== Train =====
+    model.train()
+    train_loss = 0
+    train_abcd_loss = 0
+    train_pres_loss = 0
+    
+    for batch in tqdm(train_loader, desc=f"Epoch {epoch+1}/{num_epochs}"):
+        # Move to device
+        phi_abcd = batch['phi_abcd'].to(device)
+        phi_pres = batch['phi_pres'].to(device)
+        qwen_abcd = batch['qwen_abcd'].to(device)
+        qwen_pres = batch['qwen_pres'].to(device)
+        llama_abcd = batch['llama_abcd'].to(device)
+        llama_pres = batch['llama_pres'].to(device)
+        
+        target_abcd = batch['target_abcd'].to(device)
+        target_pres = batch['target_pres'].to(device)
+        
+        # Forward
+        abcd_pred, pres_pred = model(
+            phi_abcd, phi_pres,
+            qwen_abcd, qwen_pres,
+            llama_abcd, llama_pres
+        )
+        
+        # Losses
+        loss_abcd = abcd_criterion(abcd_pred, target_abcd)
+        loss_pres = presence_criterion(pres_pred, target_pres)
+        
+        # Combined loss
+        loss = abcd_weight * loss_abcd + presence_weight * loss_pres
+        
+        # Backward
+        optimizer.zero_grad()
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        optimizer.step()
+        
+        train_loss += loss.item()
+        train_abcd_loss += loss_abcd.item()
+        train_pres_loss += loss_pres.item()
+    
+    # ===== Validate =====
+    model.eval()
+    val_loss = 0
+    val_abcd_loss = 0
+    val_pres_loss = 0
+    
+    all_abcd_pred = []
+    all_abcd_true = []
+    all_pres_pred = []
+    all_pres_true = []
+    
+    with torch.no_grad():
+        for batch in val_loader:
+            phi_abcd = batch['phi_abcd'].to(device)
+            phi_pres = batch['phi_pres'].to(device)
+            qwen_abcd = batch['qwen_abcd'].to(device)
+            qwen_pres = batch['qwen_pres'].to(device)
+            llama_abcd = batch['llama_abcd'].to(device)
+            llama_pres = batch['llama_pres'].to(device)
+            
+            target_abcd = batch['target_abcd'].to(device)
+            target_pres = batch['target_pres'].to(device)
+            
+            # Predict
+            abcd_pred, pres_pred = model(
+                phi_abcd, phi_pres,
+                qwen_abcd, qwen_pres,
+                llama_abcd, llama_pres
+            )
+            
+            # Losses
+            loss_abcd = abcd_criterion(abcd_pred, target_abcd)
+            loss_pres = presence_criterion(pres_pred, target_pres)
+            loss = abcd_weight * loss_abcd + presence_weight * loss_pres
+            
+            val_loss += loss.item()
+            val_abcd_loss += loss_abcd.item()
+            val_pres_loss += loss_pres.item()
+            
+            # Collect predictions
+            all_abcd_pred.append((abcd_pred > 0.5).cpu().numpy())
+            all_abcd_true.append(target_abcd.cpu().numpy())
+            all_pres_pred.append(pres_pred.cpu().numpy())
+            all_pres_true.append(target_pres.cpu().numpy())
+    
+    # Calculate metrics
+    all_abcd_pred = np.vstack(all_abcd_pred)
+    all_abcd_true = np.vstack(all_abcd_true)
+    all_pres_pred = np.vstack(all_pres_pred)
+    all_pres_true = np.vstack(all_pres_true)
+    
+    # ABCD F1
+    f1_micro = f1_score(all_abcd_true, all_abcd_pred, average='micro')
+    
+    # Presence MAE
+    mae_adaptive = mean_absolute_error(all_pres_true[:, 0], all_pres_pred[:, 0])
+    mae_maladaptive = mean_absolute_error(all_pres_true[:, 1], all_pres_pred[:, 1])
+    mae_avg = (mae_adaptive + mae_maladaptive) / 2
+    
+    # Print results
+    print(f"\nEpoch {epoch+1}/{num_epochs}")
+    print(f"  Train Loss: {train_loss/len(train_loader):.4f} (ABCD: {train_abcd_loss/len(train_loader):.4f}, Pres: {train_pres_loss/len(train_loader):.4f})")
+    print(f"  Val Loss:   {val_loss/len(val_loader):.4f} (ABCD: {val_abcd_loss/len(val_loader):.4f}, Pres: {val_pres_loss/len(val_loader):.4f})")
+    print(f"  Val F1 (ABCD): {f1_micro:.4f}")
+    print(f"  Val MAE (Presence): {mae_avg:.4f} (Adaptive: {mae_adaptive:.4f}, Maladaptive: {mae_maladaptive:.4f})")
+    
+    # Save best model
+    if val_loss < best_val_loss:
+        best_val_loss = val_loss
+        torch.save({
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'val_loss': val_loss,
+            'f1_micro': f1_micro,
+            'mae_avg': mae_avg
+        }, 'ensemble_meta_learner_best.pt')
+        print(f"  ✅ Saved best model!")
 
 print("\n" + "="*60)
+print("Training Complete!")
+print("="*60)
 
-# ========== 6. Save Results ==========
-results = {
-    'micro': {
-        'precision': float(precision_micro),
-        'recall': float(recall_micro),
-        'f1': float(f1_micro)
-    },
-    'macro': {
-        'precision': float(precision_macro),
-        'recall': float(recall_macro),
-        'f1': float(f1_macro)
-    },
-    'per_dimension': {
-        categories[i]: {
-            'precision': float(precision_per_cat[i]),
-            'recall': float(recall_per_cat[i]),
-            'f1': float(f1_per_cat[i]),
-            'support': int(support[i])
-        }
-        for i in range(len(categories))
-    },
-    'exact_match': float(exact_match)
-}
+#!/usr/bin/env python3
+"""
+Use trained meta-learner for ensemble predictions
+"""
 
-# with open(f'evaluation_results_{MODEL}.json', 'w') as f:
-#     json.dump(results, f, indent=2)
+# Load best model
+checkpoint = torch.load('ensemble_meta_learner_best.pt')
+model = JointMetaLearner()
+model.load_state_dict(checkpoint['model_state_dict'])
+model.eval()
 
-# print("\n✅ Results saved to evaluation_results.json")
+print(f"Loaded best model from epoch {checkpoint['epoch']}")
+print(f"Val F1: {checkpoint['f1_micro']:.4f}")
+print(f"Val MAE: {checkpoint['mae_avg']:.4f}")
+
+# Predict on test set
+def predict_ensemble(phi_pred, qwen_pred, llama_pred):
+    """Generate ensemble prediction from 3 model outputs"""
+    
+    # Parse to features
+    phi_abcd, phi_pres = parse_json_to_features(phi_pred)
+    qwen_abcd, qwen_pres = parse_json_to_features(qwen_pred)
+    llama_abcd, llama_pres = parse_json_to_features(llama_pred)
+    
+    # Convert to tensors
+    phi_abcd = torch.FloatTensor(phi_abcd).unsqueeze(0)
+    phi_pres = torch.FloatTensor(phi_pres).unsqueeze(0)
+    qwen_abcd = torch.FloatTensor(qwen_abcd).unsqueeze(0)
+    qwen_pres = torch.FloatTensor(qwen_pres).unsqueeze(0)
+    llama_abcd = torch.FloatTensor(llama_abcd).unsqueeze(0)
+    llama_pres = torch.FloatTensor(llama_pres).unsqueeze(0)
+    
+    # Predict
+    with torch.no_grad():
+        abcd_pred, pres_pred = model(
+            phi_abcd, phi_pres,
+            qwen_abcd, qwen_pres,
+            llama_abcd, llama_pres
+        )
+    
+    # Convert back to JSON format
+    ensemble_output = binary_to_json(
+        abcd_pred.squeeze().numpy(),
+        pres_pred.squeeze().numpy()
+    )
+    
+    return ensemble_output
+
+def binary_to_json(abcd_vector, presence_vector):
+    """Convert binary vector back to JSON format"""
+    
+    dimensions = ['A', 'B-S', 'B-O', 'C-S', 'C-O', 'D']
+    
+    output = {
+        "adaptive-state": {"Presence": int(round(presence_vector[0]))},
+        "maladaptive-state": {"Presence": int(round(presence_vector[1]))}
+    }
+    
+    # ABCD elements
+    for i, dim in enumerate(dimensions):
+        # Adaptive (even indices)
+        if abcd_vector[i*2] > 0.5:
+            output["adaptive-state"][dim] = {"subelement": 1}
+        
+        # Maladaptive (odd indices)
+        if abcd_vector[i*2 + 1] > 0.5:
+            output["maladaptive-state"][dim] = {"subelement": 1}
+    
+    return output
+
+# Example usage
+ensemble_pred = predict_ensemble(
+    phi_predictions[0],
+    qwen_predictions[0],
+    llama_predictions[0]
+)
+
+print(json.dumps(ensemble_pred, indent=2))
