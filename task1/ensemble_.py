@@ -5,13 +5,13 @@ import re
 from sklearn.metrics import precision_recall_fscore_support, classification_report
 
 # Load all predictions
-with open('val_predictions_phi-final.json') as f:
+with open('test_predictions_phi-final.json') as f:
     phi_preds = json.load(f)
     
-with open('val_predictions_qwen-final.json') as f:
+with open('test_predictions_qwen-final.json') as f:
     qwen_preds = json.load(f)
     
-with open('val_predictions_llama-final.json') as f:
+with open('test_predictions_llama-final.json') as f:
     llama_preds = json.load(f)
 
 def all_predictions(phi_pred, qwen_pred, llama_pred, state, dim):
@@ -192,11 +192,11 @@ for i in range(len(phi_preds)):
     ensemble_predictions.append(d)
 
 # Save ensemble predictions
-with open('val_predictions_ensemble.json', 'w') as f:
+with open('test_predictions_ensemble.json', 'w') as f:
     json.dump(ensemble_predictions, f, indent=2)
 
 
-# Define all dimensions
+# # Define all dimensions
 dimensions = ['A', 'B-S', 'B-O', 'C-S', 'C-O', 'D']
 categories = []
 for dim in dimensions:
@@ -207,93 +207,93 @@ n_categories = len(categories)
 
 
 
-# Convert all predictions and ground truths
-y_true = []
-y_pred = []
+# # Convert all predictions and ground truths
+# y_true = []
+# y_pred = []
 
-valid_count = 0
-for idx, pred in enumerate(ensemble_predictions):
-    if pred['prediction'] and phi_preds[idx]['ground_truth']:
-        y_true.append(evidence_to_binary(phi_preds[idx]['ground_truth']))
-        y_pred.append(evidence_to_binary(pred['prediction']))
-        valid_count += 1
+# valid_count = 0
+# for idx, pred in enumerate(ensemble_predictions):
+#     if pred['prediction'] and phi_preds[idx]['ground_truth']:
+#         y_true.append(evidence_to_binary(phi_preds[idx]['ground_truth']))
+#         y_pred.append(evidence_to_binary(pred['prediction']))
+#         valid_count += 1
 
-y_true = np.array(y_true)
-y_pred = np.array(y_pred)
+# y_true = np.array(y_true)
+# y_pred = np.array(y_pred)
 
-print(f"Valid predictions: {valid_count}/{len(ensemble_predictions)}")
-print(f"Binary matrix shape: {y_true.shape}\n")
+# print(f"Valid predictions: {valid_count}/{len(ensemble_predictions)}")
+# print(f"Binary matrix shape: {y_true.shape}\n")
 
-# ========== 5. Calculate Metrics ==========
-print("="*60)
-print("EVALUATION RESULTS")
-print("="*60)
+# # ========== 5. Calculate Metrics ==========
+# print("="*60)
+# print("EVALUATION RESULTS")
+# print("="*60)
 
-# Overall metrics (micro-averaged)
-precision_micro, recall_micro, f1_micro, _ = precision_recall_fscore_support(
-    y_true, y_pred, average='micro', zero_division=0
-)
+# # Overall metrics (micro-averaged)
+# precision_micro, recall_micro, f1_micro, _ = precision_recall_fscore_support(
+#     y_true, y_pred, average='micro', zero_division=0
+# )
 
-print("\n--- Overall (Micro-Averaged) ---")
-print(f"Precision: {precision_micro:.4f}")
-print(f"Recall:    {recall_micro:.4f}")
-print(f"F1 Score:  {f1_micro:.4f}")
+# print("\n--- Overall (Micro-Averaged) ---")
+# print(f"Precision: {precision_micro:.4f}")
+# print(f"Recall:    {recall_micro:.4f}")
+# print(f"F1 Score:  {f1_micro:.4f}")
 
-# Macro-averaged (average across all dimensions)
-precision_macro, recall_macro, f1_macro, _ = precision_recall_fscore_support(
-    y_true, y_pred, average='macro', zero_division=0
-)
+# # Macro-averaged (average across all dimensions)
+# precision_macro, recall_macro, f1_macro, _ = precision_recall_fscore_support(
+#     y_true, y_pred, average='macro', zero_division=0
+# )
 
-print("\n--- Macro-Averaged (All Dimensions) ---")
-print(f"Precision: {precision_macro:.4f}")
-print(f"Recall:    {recall_macro:.4f}")
-print(f"F1 Score:  {f1_macro:.4f}")
+# print("\n--- Macro-Averaged (All Dimensions) ---")
+# print(f"Precision: {precision_macro:.4f}")
+# print(f"Recall:    {recall_macro:.4f}")
+# print(f"F1 Score:  {f1_macro:.4f}")
 
-# Per-dimension metrics
-print("\n--- Per-Dimension Metrics ---")
-precision_per_cat, recall_per_cat, f1_per_cat, support = precision_recall_fscore_support(
-    y_true, y_pred, average=None, zero_division=0
-)
+# # Per-dimension metrics
+# print("\n--- Per-Dimension Metrics ---")
+# precision_per_cat, recall_per_cat, f1_per_cat, support = precision_recall_fscore_support(
+#     y_true, y_pred, average=None, zero_division=0
+# )
 
-for i, cat in enumerate(categories):
-    if support[i] > 0:  # Only show categories that exist in ground truth
-        print(f"\n{cat}:")
-        print(f"  Precision: {precision_per_cat[i]:.4f}")
-        print(f"  Recall:    {recall_per_cat[i]:.4f}")
-        print(f"  F1:        {f1_per_cat[i]:.4f}")
-        print(f"  Support:   {int(support[i])}")
+# for i, cat in enumerate(categories):
+#     if support[i] > 0:  # Only show categories that exist in ground truth
+#         print(f"\n{cat}:")
+#         print(f"  Precision: {precision_per_cat[i]:.4f}")
+#         print(f"  Recall:    {recall_per_cat[i]:.4f}")
+#         print(f"  F1:        {f1_per_cat[i]:.4f}")
+#         print(f"  Support:   {int(support[i])}")
 
-# Exact match accuracy
-from sklearn.metrics import accuracy_score
-exact_match = accuracy_score(y_true, y_pred)
-print(f"\n--- Exact Match Accuracy ---")
-print(f"Accuracy: {exact_match:.4f}")
+# # Exact match accuracy
+# from sklearn.metrics import accuracy_score
+# exact_match = accuracy_score(y_true, y_pred)
+# print(f"\n--- Exact Match Accuracy ---")
+# print(f"Accuracy: {exact_match:.4f}")
 
-print("\n" + "="*60)
+# print("\n" + "="*60)
 
-# ========== 6. Save Results ==========
-results = {
-    'micro': {
-        'precision': float(precision_micro),
-        'recall': float(recall_micro),
-        'f1': float(f1_micro)
-    },
-    'macro': {
-        'precision': float(precision_macro),
-        'recall': float(recall_macro),
-        'f1': float(f1_macro)
-    },
-    'per_dimension': {
-        categories[i]: {
-            'precision': float(precision_per_cat[i]),
-            'recall': float(recall_per_cat[i]),
-            'f1': float(f1_per_cat[i]),
-            'support': int(support[i])
-        }
-        for i in range(len(categories))
-    },
-    'exact_match': float(exact_match)
-}
+# # ========== 6. Save Results ==========
+# results = {
+#     'micro': {
+#         'precision': float(precision_micro),
+#         'recall': float(recall_micro),
+#         'f1': float(f1_micro)
+#     },
+#     'macro': {
+#         'precision': float(precision_macro),
+#         'recall': float(recall_macro),
+#         'f1': float(f1_macro)
+#     },
+#     'per_dimension': {
+#         categories[i]: {
+#             'precision': float(precision_per_cat[i]),
+#             'recall': float(recall_per_cat[i]),
+#             'f1': float(f1_per_cat[i]),
+#             'support': int(support[i])
+#         }
+#         for i in range(len(categories))
+#     },
+#     'exact_match': float(exact_match)
+# }
 
 # with open(f'evaluation_results_{MODEL}.json', 'w') as f:
 #     json.dump(results, f, indent=2)

@@ -32,6 +32,8 @@ phi/
 qwen/
 deepseek/
 CLPsych-2026/
+qwen-final/
+task2_results/
 
 # Distribution / packaging
 .Python
